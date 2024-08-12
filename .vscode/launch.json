@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(lldb) Launch",
+            "type": "lldb",
+            "request": "launch",
+            // Resolved by CMake Tools:
+            "program": "${command:cmake.launchTargetPath}",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PATH": "$PATH:${command:cmake.getLaunchTargetDirectory}:/usr/bin/",
+                "TEST_SRCDIR": "${command:cmake.getLaunchTargetDirectory}/dbg_test_out",
+                "MES_DEBUGGER_START": "0"
+            },
+            "externalConsole": true
+        }
+    ]
+}

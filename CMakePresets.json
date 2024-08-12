@@ -1,0 +1,42 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "coro",
+      "displayName": "coro",
+      "description": "Configure debug build of a coroutine library",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CORO_TESTS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "coro",
+      "displayName": "coro",
+      "configurePreset": "coro"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests",
+      "displayName": "Unit Tests",
+      "configurePreset": "coro",
+      "output": {
+        "outputOnFailure": true
+      },
+      "execution": {
+        "noTestsAction": "error",
+        "stopOnFailure": false
+      }
+    }
+  ]
+}
