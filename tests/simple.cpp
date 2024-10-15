@@ -25,8 +25,8 @@ coro::Task<double> simple() {
 TEST(SimpleTest, Builtin) {
     coro::StackedExecutor e;
     auto task = simple();
-    auto d = e.runAndWait(task);
-    EXPECT_EQ(d, 0.5);
+    auto d = e.run(task);
+    EXPECT_DOUBLE_EQ(d, 0.5);
 }
 
 struct MyError : std::runtime_error {
@@ -59,13 +59,13 @@ coro::Task<int> errorenous2() {
 TEST(SimpleTest, Error) {
     coro::StackedExecutor e;
     auto task = try_errorenous2();
-    auto result = e.runAndWait(task);
+    auto result = e.run(task);
     EXPECT_EQ(result, -1);
     EXPECT_THROW(
         {
             coro::StackedExecutor e;
             auto task = errorenous2();
-            [[maybe_unused]] auto result = e.runAndWait(task);
+            [[maybe_unused]] auto result = e.run(task);
         },
         MyError);
 }
@@ -88,7 +88,7 @@ TEST(SimpleTest, ThrowingVoidReturn) {
         {
             coro::StackedExecutor e;
             auto task = error_void2();
-            e.runAndWait(task);
+            e.run(task);
         },
         MyError);
 }

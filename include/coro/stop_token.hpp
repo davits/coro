@@ -51,10 +51,6 @@ private:
     StopState::Ptr _state;
 };
 
-class CurrentStopToken {};
-
-inline CurrentStopToken currentStopToken;
-
 class StopSource {
 public:
     StopSource()

@@ -9,15 +9,23 @@ template <typename R>
 struct ReadyAwaitable {
     R result;
 
-    ReadyAwaitable(R r)
+    ReadyAwaitable(const R& r)
+        : result(r) {}
+
+    ReadyAwaitable(R&& r)
         : result(std::move(r)) {}
 
     bool await_ready() noexcept {
         return true;
     }
     void await_suspend(std::coroutine_handle<>) noexcept {}
-    R await_resume() noexcept(noexcept(R(std::declval<R&&>()))) {
-        return std::move(result);
+
+    R await_resume() {
+        if constexpr (std::move_constructible<R>) {
+            return std::move(result);
+        } else {
+            return result;
+        }
     }
 };
 
@@ -37,10 +45,14 @@ struct Awaitable {
     }
 
     template <typename ContextPromise>
-    void await_suspend(ContextPromise) {}
+    void await_suspend(ContextPromise) noexcept {}
 
     Return await_resume() {
-        return std::move(_task.promise()).value();
+        if constexpr (std::move_constructible<Return>) {
+            return std::move(_task.promise()).value();
+        } else {
+            return _task.promise().value();
+        }
     }
 };
 
