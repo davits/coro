@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CORO_PROMISE_INL_HPP
+#define CORO_PROMISE_INL_HPP
 
 #include "promise.hpp"
 #include "executor.hpp"
@@ -24,3 +25,5 @@ inline Task<void> Promise<void>::get_return_object() {
 }
 
 } // namespace coro
+
+#endif

@@ -12,6 +12,9 @@ namespace coro {
 
 class Executor;
 
+template <typename T>
+struct await_ready_trait;
+
 class PromiseBase {
 public:
     Executor* executor = nullptr;
@@ -30,8 +33,10 @@ public:
     template <typename U>
     Awaitable<Task<U>> await_transform(Task<U>&& task);
 
-    ReadyAwaitable<StopToken> await_transform(CurrentStopToken) {
-        return {_token};
+    template <typename T>
+    ReadyAwaitable<std::remove_cvref_t<T>> await_transform(T&& obj) {
+        using RawT = std::remove_cvref_t<T>;
+        return await_ready_trait<RawT>::await_transform(executor, std::forward<T>(obj));
     }
 
     void set_stop_token(StopToken token) {
@@ -94,3 +99,7 @@ public:
 };
 
 } // namespace coro
+
+#ifndef CORO_PROMISE_INL_HPP
+#include "promise.inl.hpp"
+#endif
