@@ -22,7 +22,11 @@ public:
 
     expected() = default;
 
-    expected(V value)
+    expected(const V& value)
+        : _value(value)
+        , _state(state::value) {}
+
+    expected(V&& value)
         : _value(std::move(value))
         , _state(state::value) {}
 
@@ -38,6 +42,11 @@ public:
     void emplace_error(std::exception_ptr e) {
         _error = e;
         _state = state::error;
+    }
+
+public:
+    bool has_value() const {
+        return _state == state::value;
     }
 
     const V& value() const& {
@@ -86,6 +95,11 @@ public:
     void emplace_error(std::exception_ptr e) {
         _error = e;
         _state = state::error;
+    }
+
+public:
+    bool has_value() const {
+        return _state == state::value;
     }
 
     void value() const {

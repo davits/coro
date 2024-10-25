@@ -1,6 +1,7 @@
 #pragma once
 
 #include "promise.hpp"
+#include "expected.hpp"
 
 #include <coroutine>
 
@@ -49,30 +50,46 @@ public:
 
     Task(handle_t handle)
         : TaskBase(handle)
-        , _handle(handle) {}
+        , _handle(handle) {
+        auto& promise = _handle.promise();
+        promise.update_storage(&_storage);
+    }
 
     Task(Task&& o)
         : TaskBase(std::move(o))
-        , _handle(o._handle) {
+        , _handle(o._handle)
+        , _storage(std::move(o._storage)) {
         o._handle = nullptr;
+        if (_handle) {
+            promise().update_storage(&_storage);
+        }
+    }
+
+    Task(const R& value)
+        : TaskBase(nullptr)
+        , _handle(nullptr)
+        , _storage(value) {}
+
+    Task(R&& value)
+        : TaskBase(nullptr)
+        , _handle(nullptr)
+        , _storage(std::move(value)) {}
+
+public:
+    bool ready() const {
+        return _storage.has_value();
     }
 
     const R& value() const& {
-        auto& promise = _handle.promise();
-        return promise.value();
+        return _storage.value();
     }
 
     R&& value() && {
-        auto& promise = _handle.promise();
-        return std::move(promise).value();
+        return std::move(_storage).value();
     }
 
     promise_type& promise() {
         return _handle.promise();
-    }
-
-    void set_stop_token(StopToken token) {
-        promise().set_stop_token(std::move(token));
     }
 
 public:
@@ -83,6 +100,7 @@ public:
 
 private:
     handle_t _handle;
+    expected<R> _storage;
 };
 
 template <>
@@ -94,25 +112,37 @@ public:
 
     Task(handle_t handle)
         : TaskBase(handle)
-        , _handle(handle) {}
+        , _handle(handle) {
+        promise().update_storage(&_storage);
+    }
 
     Task(Task&& o)
         : TaskBase(std::move(o))
-        , _handle(o._handle) {
+        , _handle(o._handle)
+        , _storage(std::move(o._storage)) {
         o._handle = nullptr;
+        if (_handle) {
+            promise().update_storage(&_storage);
+        }
+    }
+
+    Task()
+        : TaskBase(nullptr)
+        , _storage() {
+        _storage.emplace_value();
+    }
+
+public:
+    bool ready() const {
+        return _storage.has_value();
     }
 
     void value() const {
-        auto& promise = _handle.promise();
-        return promise.value();
+        return _storage.value();
     }
 
     promise_type& promise() {
         return _handle.promise();
-    }
-
-    void set_stop_token(StopToken token) {
-        promise().set_stop_token(std::move(token));
     }
 
 public:
@@ -123,6 +153,7 @@ public:
 
 private:
     handle_t _handle;
+    expected<void> _storage;
 };
 
 } // namespace coro

@@ -18,7 +18,6 @@ struct await_ready_trait;
 class PromiseBase {
 public:
     Executor* executor = nullptr;
-    StopToken _token;
 
 public:
     PromiseBase() = default;
@@ -38,10 +37,6 @@ public:
         using RawT = std::remove_cvref_t<T>;
         return await_ready_trait<RawT>::await_transform(executor, std::forward<T>(obj));
     }
-
-    void set_stop_token(StopToken token) {
-        _token = std::move(token);
-    }
 };
 
 template <typename R>
@@ -51,25 +46,22 @@ public:
     using return_t = R;
 
 private:
-    expected<R> _result;
+    expected<R>* _storage;
+
+    friend class Task<R>;
+    void update_storage(expected<R>* storage) {
+        _storage = storage;
+    }
 
 public:
     Task<R> get_return_object();
 
     void unhandled_exception() {
-        _result.emplace_error(std::current_exception());
+        _storage->emplace_error(std::current_exception());
     }
 
     void return_value(R r) {
-        _result.emplace_value(std::move(r));
-    }
-
-    const R& value() const& {
-        return _result.value();
-    }
-
-    R&& value() && {
-        return std::move(_result).value();
+        _storage->emplace_value(std::move(r));
     }
 };
 
@@ -80,21 +72,22 @@ public:
     using return_t = void;
 
 private:
-    expected<void> _result;
+    expected<void>* _storage;
+
+    friend class Task<void>;
+    void update_storage(expected<void>* storage) {
+        _storage = storage;
+    }
 
 public:
     inline Task<void> get_return_object();
 
     void unhandled_exception() {
-        _result.emplace_error(std::current_exception());
+        _storage->emplace_error(std::current_exception());
     }
 
     void return_void() {
-        _result.emplace_value();
-    }
-
-    void value() const {
-        return _result.value();
+        _storage->emplace_value();
     }
 };
 

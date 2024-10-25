@@ -41,7 +41,7 @@ struct Awaitable {
     Task _task;
 
     bool await_ready() const noexcept {
-        return false;
+        return _task.ready();
     }
 
     template <typename ContextPromise>
@@ -49,9 +49,9 @@ struct Awaitable {
 
     Return await_resume() {
         if constexpr (std::move_constructible<Return>) {
-            return std::move(_task.promise()).value();
+            return std::move(_task).value();
         } else {
-            return _task.promise().value();
+            return _task.value();
         }
     }
 };

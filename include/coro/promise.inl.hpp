@@ -9,10 +9,11 @@ namespace coro {
 
 template <typename U>
 Awaitable<Task<U>> PromiseBase::await_transform(Task<U>&& task) {
-    task.setExecutor(executor);
-    executor->schedule(task.handle());
-    Awaitable<Task<U>> result {std::move(task)};
-    return result;
+    if (!task.ready()) {
+        task.setExecutor(executor);
+        executor->schedule(task.handle());
+    }
+    return Awaitable<Task<U>> {std::move(task)};
 }
 
 template <typename R>
