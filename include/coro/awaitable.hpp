@@ -29,7 +29,20 @@ struct ReadyAwaitable {
     }
 };
 
-// Light-weight non owning handle
+template <typename F>
+class AtExit {
+public:
+    AtExit(F f)
+        : _callback(std::move(f)) {}
+
+    ~AtExit() {
+        _callback();
+    }
+
+private:
+    F _callback;
+};
+
 template <typename Task>
 struct Awaitable {
     using Return = Task::Type;
@@ -44,10 +57,15 @@ struct Awaitable {
         return _task.ready();
     }
 
-    template <typename ContextPromise>
-    void await_suspend(ContextPromise) noexcept {}
+    template <typename Promise>
+    void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
+        auto& promise = continuation.promise();
+        _task.promise().continuation = continuation;
+        _task.scheduleOn(promise.executor);
+    }
 
     Return await_resume() {
+        AtExit exit {[this]() { _task.destroy(); }};
         if constexpr (std::move_constructible<Return>) {
             return std::move(_task).value();
         } else {

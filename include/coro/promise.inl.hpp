@@ -1,5 +1,4 @@
-#ifndef CORO_PROMISE_INL_HPP
-#define CORO_PROMISE_INL_HPP
+#pragma once
 
 #include "promise.hpp"
 #include "executor.hpp"
@@ -9,10 +8,6 @@ namespace coro {
 
 template <typename U>
 Awaitable<Task<U>> PromiseBase::await_transform(Task<U>&& task) {
-    if (!task.ready()) {
-        task.setExecutor(executor);
-        executor->schedule(task.handle());
-    }
     return Awaitable<Task<U>> {std::move(task)};
 }
 
@@ -26,5 +21,3 @@ inline Task<void> Promise<void>::get_return_object() {
 }
 
 } // namespace coro
-
-#endif

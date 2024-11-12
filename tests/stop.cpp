@@ -8,7 +8,7 @@ namespace coro {
 template <>
 struct await_ready_trait<StopToken> {
     static ReadyAwaitable<StopToken> await_transform(Executor* executor, const StopToken&) {
-        auto se = static_cast<CancellableStackedExecutor*>(executor);
+        auto se = static_cast<CancellableSerialExecutor*>(executor);
         return se->stopToken();
     }
 };
@@ -49,17 +49,17 @@ TEST(StopTest, Builtin) {
     coro::StopSource ss3;
     auto t1 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableStackedExecutor e1 {ss1.get_token()};
+        coro::CancellableSerialExecutor e1 {ss1.get_token()};
         EXPECT_THROW(e1.run(task), Cancelled);
     }};
     auto t2 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableStackedExecutor e2 {ss2.get_token()};
+        coro::CancellableSerialExecutor e2 {ss2.get_token()};
         EXPECT_THROW(e2.run(task), Cancelled);
     }};
     auto t3 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableStackedExecutor e3 {ss3.get_token()};
+        coro::CancellableSerialExecutor e3 {ss3.get_token()};
         auto d = e3.run(task);
         EXPECT_DOUBLE_EQ(d, 0.5);
     }};

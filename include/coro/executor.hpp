@@ -4,18 +4,28 @@
 #include "stop_token.hpp"
 
 #include <coroutine>
-#include <deque>
+#include <queue>
 
 namespace coro {
 
 class Executor {
 public:
-    /// Override should schedule given task in some internal storage to be executed later.
-    virtual void schedule(std::coroutine_handle<> handle) = 0;
+    template <typename T>
+    friend class Task;
 
+    friend class PromiseBase;
+
+protected:
+    /// Override should schedule given task in some internal storage to be executed later.
+    virtual void schedule(std::coroutine_handle<> coro) = 0;
+
+public:
+    virtual void timeout(uint32_t timeout, std::coroutine_handle<> coro) = 0;
+
+public:
     /// Should resume/start next scheduled task.
     /// Should return true if there are more tasks remaining and false otherwise.
-    virtual bool resumeNext() = 0;
+    virtual bool step() = 0;
 
 public:
     /// Run given task and synchronously wait for its completion.
@@ -24,22 +34,22 @@ public:
     R run(Task<R>& task);
 };
 
-class StackedExecutor : public Executor {
+class SerialExecutor : public Executor {
+protected:
+    void schedule(std::coroutine_handle<> coro) override;
+
+    void timeout(uint32_t timeout, std::coroutine_handle<> coro) override;
+
 public:
-    inline void schedule(std::coroutine_handle<> handle) override;
-
-    inline bool resumeNext() override;
+    bool step() override;
 
 private:
-    void clearFinished();
-
-private:
-    std::deque<std::coroutine_handle<>> _tasks;
+    std::queue<std::coroutine_handle<>> _tasks;
 };
 
-class CancellableStackedExecutor : public StackedExecutor {
+class CancellableSerialExecutor : public SerialExecutor {
 public:
-    CancellableStackedExecutor(StopToken token)
+    CancellableSerialExecutor(StopToken token)
         : _token(std::move(token)) {}
 
     StopToken stopToken() {
@@ -51,7 +61,3 @@ private:
 };
 
 } // namespace coro
-
-#ifndef CORO_EXECUTOR_INL_HPP
-#include "executor.inl.hpp"
-#endif

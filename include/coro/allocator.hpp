@@ -2,7 +2,7 @@
 
 namespace coro {
 
-class StackedExecutor;
+class SerialExecutor;
 
 class TaskAllocator {
 public:

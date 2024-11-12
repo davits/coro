@@ -5,14 +5,15 @@
 #include "task.hpp"
 
 #include <concepts>
+#include <thread>
 
 namespace coro {
 
 template <typename R>
 R Executor::run(Task<R>& task) {
-    task.setExecutor(this);
-    schedule(task.handle());
-    while (resumeNext())
+    task.scheduleOn(this);
+    // schedule(task.handle());
+    while (step())
         ;
 
     if constexpr (std::move_constructible<R>) {
@@ -22,25 +23,23 @@ R Executor::run(Task<R>& task) {
     }
 }
 
-inline void StackedExecutor::schedule(std::coroutine_handle<> handle) {
-    _tasks.push_back(handle);
+inline void SerialExecutor::schedule(std::coroutine_handle<> coro) {
+    _tasks.push(coro);
 }
 
-inline bool StackedExecutor::resumeNext() {
-    clearFinished();
+inline void SerialExecutor::timeout(uint32_t timeout, std::coroutine_handle<> coro) {
+    std::this_thread::sleep_for(std::chrono::milliseconds {timeout});
+    _tasks.push(coro);
+}
+
+inline bool SerialExecutor::step() {
     if (_tasks.empty()) {
         return false;
     }
-    auto& task = _tasks.back();
-    task.resume();
-    clearFinished();
+    auto coro = _tasks.front();
+    _tasks.pop();
+    coro.resume();
     return !_tasks.empty();
-}
-
-inline void StackedExecutor::clearFinished() {
-    while (!_tasks.empty() && _tasks.back().done()) {
-        _tasks.pop_back();
-    }
 }
 
 } // namespace coro

@@ -2,6 +2,7 @@
 
 #include "promise.hpp"
 #include "expected.hpp"
+#include "executor.hpp"
 
 #include <coroutine>
 
@@ -9,83 +10,43 @@ namespace coro {
 
 class Executor;
 
-class TaskBase {
-public:
-    TaskBase(std::coroutine_handle<> handle)
-        : _typeless_handle(handle) {}
-
-    TaskBase(TaskBase&& other)
-        : _typeless_handle(other._typeless_handle) {
-        other._typeless_handle = nullptr;
-    }
-
-    virtual ~TaskBase() {
-        if (_typeless_handle) {
-            _typeless_handle.destroy();
-        }
-    }
-
-    bool done() const {
-        return _typeless_handle.done();
-    }
-
-    void resume() const {
-        _typeless_handle.resume();
-    }
-
-    std::coroutine_handle<> handle() const {
-        return _typeless_handle;
-    }
-
-private:
-    std::coroutine_handle<> _typeless_handle;
-};
-
 template <typename R>
-class Task : public TaskBase {
+class Task {
 public:
     using Type = R;
     using promise_type = Promise<R>;
     using handle_t = promise_type::handle_t;
 
     Task(handle_t handle)
-        : TaskBase(handle)
-        , _handle(handle) {
-        auto& promise = _handle.promise();
-        promise.update_storage(&_storage);
-    }
+        : _handle(handle) {}
 
     Task(Task&& o)
-        : TaskBase(std::move(o))
-        , _handle(o._handle)
-        , _storage(std::move(o._storage)) {
-        o._handle = nullptr;
+        : _handle(std::exchange(o._handle, {})) {}
+
+    ~Task() {
+        destroy();
+    }
+
+public:
+    // TODO make private with friend promise
+    void destroy() {
         if (_handle) {
-            promise().update_storage(&_storage);
+            _handle.destroy();
+            _handle = nullptr;
         }
     }
 
-    Task(const R& value)
-        : TaskBase(nullptr)
-        , _handle(nullptr)
-        , _storage(value) {}
-
-    Task(R&& value)
-        : TaskBase(nullptr)
-        , _handle(nullptr)
-        , _storage(std::move(value)) {}
-
 public:
     bool ready() const {
-        return _storage.has_value();
+        return false;
     }
 
     const R& value() const& {
-        return _storage.value();
+        return promise().storage().value();
     }
 
     R&& value() && {
-        return std::move(_storage).value();
+        return std::move(promise().storage()).value();
     }
 
     promise_type& promise() {
@@ -93,67 +54,76 @@ public:
     }
 
 public:
-    void setExecutor(Executor* exec) {
-        auto& promise = _handle.promise();
-        promise.executor = exec;
+    void scheduleOn(Executor* executor) {
+        auto& p = promise();
+        p.executor = executor;
+        executor->schedule(_handle);
     }
 
 private:
     handle_t _handle;
-    expected<R> _storage;
 };
 
 template <>
-class Task<void> : public TaskBase {
+class Task<void> {
 public:
     using Type = void;
     using promise_type = Promise<void>;
     using handle_t = promise_type::handle_t;
 
     Task(handle_t handle)
-        : TaskBase(handle)
-        , _handle(handle) {
-        promise().update_storage(&_storage);
-    }
+        : _handle(handle) {}
 
     Task(Task&& o)
-        : TaskBase(std::move(o))
-        , _handle(o._handle)
-        , _storage(std::move(o._storage)) {
-        o._handle = nullptr;
-        if (_handle) {
-            promise().update_storage(&_storage);
-        }
+        : _handle(std::exchange(o._handle, {})) {}
+
+    ~Task() {
+        destroy();
     }
 
-    Task()
-        : TaskBase(nullptr)
-        , _storage() {
-        _storage.emplace_value();
+public:
+    // TODO make private with friend promise
+    void destroy() {
+        if (_handle) {
+            _handle.destroy();
+            _handle = nullptr;
+        }
     }
 
 public:
     bool ready() const {
-        return _storage.has_value();
+        return false;
     }
 
     void value() const {
-        return _storage.value();
+        return promise().storage().value();
     }
 
-    promise_type& promise() {
+    promise_type& promise() const {
         return _handle.promise();
     }
 
 public:
-    void setExecutor(Executor* exec) {
-        auto& promise = _handle.promise();
-        promise.executor = exec;
+    void scheduleOn(Executor* executor) {
+        auto& p = promise();
+        p.executor = executor;
+        executor->schedule(_handle);
     }
 
 private:
     handle_t _handle;
-    expected<void> _storage;
 };
+
+/*
+template <typename R>
+class ReadyTask {
+    ReadyTask(Task<R>&& task);
+    ReadyTask(R value);
+
+private:
+    Task<R> _task;
+    expected<R> _storage;
+};
+*/
 
 } // namespace coro
