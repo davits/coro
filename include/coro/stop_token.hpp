@@ -17,15 +17,15 @@ public:
 
 public:
     void request_stop() noexcept {
-        _stopRequested = true;
+        _stopRequested.store(true, std::memory_order_relaxed);
     }
 
     bool stop_requested() const noexcept {
-        return _stopRequested;
+        return _stopRequested.load(std::memory_order_relaxed);
     }
 
 private:
-    bool _stopRequested = false;
+    std::atomic<bool> _stopRequested = false;
 };
 
 class StopToken {
