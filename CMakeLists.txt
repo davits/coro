@@ -13,6 +13,9 @@ target_include_directories(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 if(CORO_TESTS)
     target_compile_options(coro INTERFACE -Wall -Wextra -Wnewline-eof -Wformat -Werror)
 
+    target_compile_options(coro INTERFACE -fsanitize=thread)
+    target_link_options(coro INTERFACE -fsanitize=thread)
+
     enable_testing()
     add_subdirectory(tests)
     add_subdirectory(third_party)
