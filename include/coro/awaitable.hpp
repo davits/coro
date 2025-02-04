@@ -21,7 +21,7 @@ struct ReadyAwaitable {
     void await_suspend(std::coroutine_handle<>) noexcept {}
 
     R await_resume() {
-        if constexpr (std::move_constructible<R>) {
+        if constexpr (std::is_move_constructible_v<R>) {
             return std::move(result);
         } else {
             return result;
@@ -65,8 +65,8 @@ struct Awaitable {
     }
 
     Return await_resume() {
-        AtExit exit {[this]() { _task.destroy(); }};
-        if constexpr (std::move_constructible<Return>) {
+        AtExit exit {[this]() { _task.destroy(); }}; // eagerly destroy task
+        if constexpr (std::is_move_constructible_v<Return>) {
             return std::move(_task).value();
         } else {
             return _task.value();

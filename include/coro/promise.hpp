@@ -77,6 +77,10 @@ public:
         _storage.emplace_value(std::move(r));
     }
 
+    const expected<R>& storage() const {
+        return _storage;
+    }
+
     expected<R>& storage() {
         return _storage;
     }
@@ -102,6 +106,10 @@ public:
         _storage.emplace_value();
     }
 
+    const expected<void>& storage() const {
+        return _storage;
+    }
+
     expected<void>& storage() {
         return _storage;
     }
@@ -109,5 +117,31 @@ public:
 private:
     expected<void> _storage;
 };
+
+class CurrentExecutor {
+public:
+    CurrentExecutor(Executor* executor)
+        : _executor(executor) {}
+
+    bool await_ready() noexcept {
+        return true;
+    }
+
+    Executor* await_resume() noexcept {
+        return _executor;
+    }
+
+private:
+    Executor* _executor = nullptr;
+};
+
+template <>
+struct await_ready_trait<CurrentExecutor> {
+    static CurrentExecutor await_transform(Executor* executor, CurrentExecutor&) {
+        return CurrentExecutor {executor};
+    }
+};
+
+inline CurrentExecutor current_executor {nullptr};
 
 } // namespace coro
