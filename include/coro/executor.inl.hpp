@@ -10,9 +10,8 @@
 namespace coro {
 
 template <typename R>
-R Executor::run(Task<R>& task) {
+R SerialExecutor::run(Task<R>& task) {
     task.scheduleOn(this);
-    // schedule(task.handle());
     while (step())
         ;
 

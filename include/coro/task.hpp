@@ -24,6 +24,9 @@ public:
         : _handle(std::exchange(o._handle, {})) {}
 
     ~Task() {
+        if (_handle && !_handle.done()) {
+            std::abort();
+        }
         destroy();
     }
 
@@ -47,6 +50,10 @@ public:
 
     R&& value() && {
         return std::move(promise().storage()).value();
+    }
+
+    const promise_type& promise() const {
+        return _handle.promise();
     }
 
     promise_type& promise() {

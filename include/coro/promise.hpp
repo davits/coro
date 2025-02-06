@@ -77,6 +77,10 @@ public:
         _storage.emplace_value(std::move(r));
     }
 
+    const expected<R>& storage() const {
+        return _storage;
+    }
+
     expected<R>& storage() {
         return _storage;
     }
@@ -102,12 +106,28 @@ public:
         _storage.emplace_value();
     }
 
+    const expected<void>& storage() const {
+        return _storage;
+    }
+
     expected<void>& storage() {
         return _storage;
     }
 
 private:
     expected<void> _storage;
+};
+
+/// Helper to easily access to the current executor within the coroutine.
+/// Executor* executor = co_await coro::currentExecutor;
+class CurrentExecutor {};
+inline CurrentExecutor currentExecutor;
+
+template <>
+struct await_ready_trait<CurrentExecutor> {
+    static ReadyAwaitable<Executor*> await_transform(Executor* executor, CurrentExecutor&) {
+        return {executor};
+    }
 };
 
 } // namespace coro
