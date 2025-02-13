@@ -4,15 +4,13 @@
 #include "executor.hpp"
 #include "task.hpp"
 
-#include <concepts>
 #include <thread>
 
 namespace coro {
 
 template <typename R>
-R Executor::run(Task<R>& task) {
+R SerialExecutor::run(Task<R>& task) {
     task.scheduleOn(this);
-    // schedule(task.handle());
     while (step())
         ;
 

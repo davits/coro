@@ -19,23 +19,25 @@ public:
     /// Override should schedule given task in some internal storage to be executed later.
     virtual void schedule(std::coroutine_handle<> coro) = 0;
 
-public:
+    /// Will be called when the given task needs timeout while it is waiting for something to happen.
     virtual void timeout(uint32_t timeout, std::coroutine_handle<> coro) = 0;
+
+    friend class TimeoutAwaitable;
 };
 
 class SerialExecutor : public Executor {
-protected:
-    void schedule(std::coroutine_handle<> coro) override;
-
-    void timeout(uint32_t timeout, std::coroutine_handle<> coro) override;
-
 public:
     /// Run given task and synchronously wait for its completion.
     /// Return the result of the task is if caller would "await"ed.
     template <typename R>
     R run(Task<R>& task);
 
-private:
+protected:
+    void schedule(std::coroutine_handle<> coro) override;
+
+    void timeout(uint32_t timeout, std::coroutine_handle<> coro) override;
+
+protected:
     bool step();
 
 private:

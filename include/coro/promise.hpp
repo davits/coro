@@ -96,7 +96,7 @@ public:
     using return_t = void;
 
 public:
-    inline Task<void> get_return_object();
+    Task<void> get_return_object();
 
     void unhandled_exception() {
         _storage.emplace_error(std::current_exception());
@@ -118,30 +118,16 @@ private:
     expected<void> _storage;
 };
 
-class CurrentExecutor {
-public:
-    CurrentExecutor(Executor* executor)
-        : _executor(executor) {}
-
-    bool await_ready() noexcept {
-        return true;
-    }
-
-    Executor* await_resume() noexcept {
-        return _executor;
-    }
-
-private:
-    Executor* _executor = nullptr;
-};
+/// Helper to easily access to the current executor within the coroutine.
+/// Executor* executor = co_await coro::currentExecutor;
+class CurrentExecutor {};
+inline CurrentExecutor currentExecutor;
 
 template <>
 struct await_ready_trait<CurrentExecutor> {
-    static CurrentExecutor await_transform(Executor* executor, CurrentExecutor&) {
-        return CurrentExecutor {executor};
+    static ReadyAwaitable<Executor*> await_transform(Executor* executor, CurrentExecutor&) {
+        return {executor};
     }
 };
-
-inline CurrentExecutor current_executor {nullptr};
 
 } // namespace coro

@@ -85,6 +85,9 @@ public:
         : _handle(std::exchange(o._handle, {})) {}
 
     ~Task() {
+        if (_handle && !_handle.done()) {
+            std::abort();
+        }
         destroy();
     }
 

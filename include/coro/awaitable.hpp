@@ -65,7 +65,7 @@ struct Awaitable {
     }
 
     Return await_resume() {
-        AtExit exit {[this]() { _task.destroy(); }}; // eagerly destroy task
+        AtExit exit {[this]() { _task.destroy(); }};
         if constexpr (std::is_move_constructible_v<Return>) {
             return std::move(_task).value();
         } else {

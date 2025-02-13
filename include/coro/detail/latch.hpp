@@ -30,14 +30,23 @@ private:
 };
 
 /**
+ * @brief A synchronization primitive that allows coroutines to wait until a specified count of events
+ * has occurred. Once the count reaches zero, all coroutines waiting on the latch are resumed.
+ *
+ * @code
  * Latch latch{3};
  * co_await latch;
+ * @endcode
  */
 class Latch {
 public:
     Latch(uint32_t count)
         : _count(count) {}
 
+    /**
+     * @brief Decrements the latch counter and resumes awaiting coroutines if the count reaches zero.
+     * @throws std::runtime_error If the latch count is decremented below zero.
+     */
     void count_down() {
         uint32_t count = _count.fetch_sub(1);
         if (count == 1) {

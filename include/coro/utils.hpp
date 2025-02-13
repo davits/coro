@@ -1,28 +1,113 @@
 #pragma once
 
+#include "promise.hpp"
 #include "task.hpp"
 #include "detail/latch.hpp"
 #include <any>
 
 namespace coro {
 
-template <typename T>
-Task<void> runAndNotify(Task<T>&& task, detail::Latch& latch, std::vector<std::any>& results, int idx) {
-    T result = co_await task;
-    results[idx] = std::move(result);
+template <typename T, typename RType = T>
+Task<void> runAndNotify(Task<T>&& task, detail::Latch& latch, std::vector<RType>& results, int idx) {
+    if constexpr (!std::is_same_v<T, void>) {
+        results[idx] = co_await std::move(task);
+    } else {
+        co_await std::move(task);
+    }
     latch.count_down();
-    co_return;
+}
+
+inline Task<void> runAndNotify(Task<void>&& task, detail::Latch& latch) {
+    co_await std::move(task);
+    latch.count_down();
+}
+
+template <typename... Args>
+concept AllVoid = (std::same_as<Args, void> && ...);
+
+template <AllVoid... Args>
+Task<void> all(Task<Args>&&... tasks) {
+    detail::Latch latch {sizeof...(tasks)};
+    auto executor = co_await currentExecutor;
+
+    std::vector<Task<void>> runningTasks;
+    runningTasks.reserve(sizeof...(tasks));
+ 
+    (runningTasks.push_back(runAndNotify(std::move(tasks), latch)), ...);
+
+    for (auto& task : runningTasks) {
+        task.scheduleOn(executor);
+    }
+    
+    co_await latch;
 }
 
 template <typename... Args>
 Task<std::vector<std::any>> all(Task<Args>&&... tasks) {
-    std::vector<std::any> results {sizeof...(tasks)};
+    std::vector<std::any> results (sizeof...(tasks));
     detail::Latch latch {sizeof...(tasks)};
-    auto executor = co_await current_executor;
+    auto executor = co_await currentExecutor;
+
+    std::vector<Task<void>> runningTasks;
+    runningTasks.reserve(sizeof...(tasks));
+ 
     size_t idx = 0;
-    (executor->schedule(runAndNotify(tasks, latch, results, idx++)), ...);
+    (runningTasks.push_back(runAndNotify(std::move(tasks), latch, results, idx++)), ...);
+
+    for (auto& task : runningTasks) {
+        task.scheduleOn(executor);
+    }
+    
     co_await latch;
     co_return std::move(results);
+}
+
+template <typename T>
+Task<std::vector<T>> all(std::vector<Task<T>>&& tasks) {
+    if (tasks.empty()) {
+        co_return {};
+    }
+    
+    std::vector<T> results(tasks.size());
+    detail::Latch latch{static_cast<uint32_t>(tasks.size())};
+    auto executor = co_await currentExecutor;
+
+    std::vector<Task<void>> runningTasks;
+    runningTasks.reserve(tasks.size());
+
+    size_t idx = 0;
+    for (auto& task : tasks) {
+        runningTasks.push_back(runAndNotify(std::move(task), latch, results, idx++));
+    }
+
+    for (auto& task : runningTasks) {
+        task.scheduleOn(executor);
+    }
+
+    co_await latch;
+    co_return std::move(results);
+}
+
+inline Task<void> all(std::vector<Task<void>>&& tasks) {
+    if (tasks.empty()) {
+        co_return;
+    }
+
+    detail::Latch latch{static_cast<uint32_t>(tasks.size())};
+    auto executor = co_await currentExecutor;
+
+    std::vector<Task<void>> runningTasks;
+    runningTasks.reserve(tasks.size());
+
+    for (auto& task : tasks) {
+        runningTasks.push_back(runAndNotify(std::move(task), latch));
+    }
+
+    for (auto& task : runningTasks) {
+        task.scheduleOn(executor);
+    }
+
+    co_await latch;
 }
 
 } // namespace coro
