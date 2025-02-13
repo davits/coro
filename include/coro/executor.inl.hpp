@@ -4,7 +4,6 @@
 #include "executor.hpp"
 #include "task.hpp"
 
-#include <concepts>
 #include <thread>
 
 namespace coro {

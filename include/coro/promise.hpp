@@ -96,7 +96,7 @@ public:
     using return_t = void;
 
 public:
-    inline Task<void> get_return_object();
+    Task<void> get_return_object();
 
     void unhandled_exception() {
         _storage.emplace_error(std::current_exception());

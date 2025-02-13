@@ -15,7 +15,7 @@ public:
 
     friend class PromiseBase;
 
-protected:
+public:
     /// Override should schedule given task in some internal storage to be executed later.
     virtual void schedule(std::coroutine_handle<> coro) = 0;
 
