@@ -33,7 +33,7 @@ inline TimeoutAwaitable timeout(uint32_t timeout) {
 
 template <>
 struct await_ready_trait<TimeoutAwaitable> {
-    static TimeoutAwaitable&& await_transform(Executor*, TimeoutAwaitable&& awaitable) {
+    static TimeoutAwaitable&& await_transform(const Executor::Ref&, TimeoutAwaitable&& awaitable) {
         return std::move(awaitable);
     }
 };

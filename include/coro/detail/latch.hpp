@@ -25,7 +25,7 @@ public:
 
 private:
     Latch* _latch;
-    Executor* _executor;
+    Executor::Ref _executor;
     std::coroutine_handle<> _continuation;
 };
 
@@ -93,7 +93,7 @@ namespace coro {
 
 template <>
 struct await_ready_trait<detail::Latch> {
-    static detail::LatchAwaitable await_transform(Executor*, detail::Latch& awaitable) {
+    static detail::LatchAwaitable await_transform(const Executor::Ref&, detail::Latch& awaitable) {
         return detail::LatchAwaitable {&awaitable};
     }
 };

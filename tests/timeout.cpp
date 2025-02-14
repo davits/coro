@@ -24,8 +24,8 @@ coro::Task<double> simple() {
 }
 
 TEST(SimpleTest, Builtin) {
-    coro::SerialExecutor e;
+    auto e = coro::SerialExecutor::create();
     auto task = simple();
-    auto d = e.run(task);
+    auto d = e->run(task);
     EXPECT_DOUBLE_EQ(d, 0.5);
 }

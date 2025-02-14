@@ -23,9 +23,9 @@ coro::Task<double> simple() {
 }
 
 TEST(SimpleTest, Builtin) {
-    coro::SerialExecutor e;
+    auto e = coro::SerialExecutor::create();
     auto task = simple();
-    auto d = e.run(task);
+    auto d = e->run(task);
     EXPECT_DOUBLE_EQ(d, 0.5);
 }
 
@@ -57,15 +57,15 @@ coro::Task<int> errorenous2() {
 }
 
 TEST(SimpleTest, Error) {
-    coro::SerialExecutor e;
+    auto e = coro::SerialExecutor::create();
     auto task = try_errorenous2();
-    auto result = e.run(task);
+    auto result = e->run(task);
     EXPECT_EQ(result, -1);
     EXPECT_THROW(
         {
-            coro::SerialExecutor e;
+            auto e = coro::SerialExecutor::create();
             auto task = errorenous2();
-            [[maybe_unused]] auto result = e.run(task);
+            [[maybe_unused]] auto result = e->run(task);
         },
         MyError);
 }
@@ -86,9 +86,9 @@ coro::Task<void> error_void2() {
 TEST(SimpleTest, ThrowingVoidReturn) {
     EXPECT_THROW(
         {
-            coro::SerialExecutor e;
+            auto e = coro::SerialExecutor::create();
             auto task = error_void2();
-            e.run(task);
+            e->run(task);
         },
         MyError);
 }

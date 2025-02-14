@@ -4,11 +4,20 @@
 #include "stop_token.hpp"
 
 #include <coroutine>
+#include <memory>
 #include <queue>
 
 namespace coro {
 
-class Executor {
+class Executor : public std::enable_shared_from_this<Executor> {
+public:
+    using Ref = std::shared_ptr<Executor>;
+
+    virtual ~Executor() = default;
+
+protected:
+    Executor() = default;
+
 public:
     template <typename T>
     friend class Task;
@@ -26,6 +35,16 @@ public:
 };
 
 class SerialExecutor : public Executor {
+protected:
+    SerialExecutor() = default;
+
+public:
+    using Ref = std::shared_ptr<SerialExecutor>;
+
+    static Ref create() {
+        return Ref {new SerialExecutor {}};
+    }
+
 public:
     /// Run given task and synchronously wait for its completion.
     /// Return the result of the task is if caller would "await"ed.
@@ -45,10 +64,17 @@ private:
 };
 
 class CancellableSerialExecutor : public SerialExecutor {
-public:
+protected:
     CancellableSerialExecutor(StopToken token)
         : _token(std::move(token)) {}
 
+public:
+    using Ref = std::shared_ptr<CancellableSerialExecutor>;
+    static Ref create(StopToken token) {
+        return Ref {new CancellableSerialExecutor {std::move(token)}};
+    }
+
+public:
     StopToken stopToken() {
         return _token;
     }

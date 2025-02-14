@@ -10,7 +10,7 @@ namespace coro {
 
 template <typename R>
 R SerialExecutor::run(Task<R>& task) {
-    task.scheduleOn(this);
+    task.scheduleOn(shared_from_this());
     while (step())
         ;
 

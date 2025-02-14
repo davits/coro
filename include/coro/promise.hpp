@@ -15,7 +15,7 @@ struct await_ready_trait;
 
 class PromiseBase {
 public:
-    Executor* executor = nullptr;
+    Executor::Ref executor = nullptr;
 
     std::coroutine_handle<> continuation;
 
@@ -54,7 +54,7 @@ public:
     Awaitable<Task<U>> await_transform(Task<U>&& task);
 
     template <typename T>
-    auto await_transform(T&& obj) {
+    decltype(auto) await_transform(T&& obj) {
         using RawT = std::remove_cvref_t<T>;
         return await_ready_trait<RawT>::await_transform(executor, std::forward<T>(obj));
     }
@@ -119,14 +119,14 @@ private:
 };
 
 /// Helper to easily access to the current executor within the coroutine.
-/// Executor* executor = co_await coro::currentExecutor;
+/// Executor::Ref executor = co_await coro::currentExecutor;
 class CurrentExecutor {};
 inline CurrentExecutor currentExecutor;
 
 template <>
 struct await_ready_trait<CurrentExecutor> {
-    static ReadyAwaitable<Executor*> await_transform(Executor* executor, CurrentExecutor&) {
-        return {executor};
+    static ReadyAwaitable<Executor::Ref> await_transform(const Executor::Ref& executor, CurrentExecutor&) {
+        return ReadyAwaitable {executor};
     }
 };
 

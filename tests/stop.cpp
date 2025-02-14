@@ -7,8 +7,8 @@
 namespace coro {
 template <>
 struct await_ready_trait<StopToken> {
-    static ReadyAwaitable<StopToken> await_transform(Executor* executor, const StopToken&) {
-        auto se = static_cast<CancellableSerialExecutor*>(executor);
+    static ReadyAwaitable<StopToken> await_transform(const Executor::Ref& executor, const StopToken&) {
+        auto se = static_cast<CancellableSerialExecutor*>(executor.get());
         return se->stopToken();
     }
 };
@@ -49,18 +49,18 @@ TEST(StopTest, Builtin) {
     coro::StopSource ss3;
     auto t1 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableSerialExecutor e1 {ss1.get_token()};
-        EXPECT_THROW(e1.run(task), Cancelled);
+        auto e1 = coro::CancellableSerialExecutor::create(ss1.get_token());
+        EXPECT_THROW(e1->run(task), Cancelled);
     }};
     auto t2 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableSerialExecutor e2 {ss2.get_token()};
-        EXPECT_THROW(e2.run(task), Cancelled);
+        auto e2 = coro::CancellableSerialExecutor::create(ss2.get_token());
+        EXPECT_THROW(e2->run(task), Cancelled);
     }};
     auto t3 = std::thread {[&]() {
         auto task = simple();
-        coro::CancellableSerialExecutor e3 {ss3.get_token()};
-        auto d = e3.run(task);
+        auto e3 = coro::CancellableSerialExecutor::create(ss3.get_token());
+        auto d = e3->run(task);
         EXPECT_DOUBLE_EQ(d, 0.5);
     }};
     ss1.request_stop();
