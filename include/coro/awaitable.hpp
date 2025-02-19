@@ -9,10 +9,7 @@ template <typename R>
 struct ReadyAwaitable {
     R result;
 
-    ReadyAwaitable(const R& r)
-        : result(r) {}
-
-    ReadyAwaitable(R&& r)
+    ReadyAwaitable(R r)
         : result(std::move(r)) {}
 
     bool await_ready() noexcept {
