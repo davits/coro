@@ -36,13 +36,15 @@ public:
 
 class SerialExecutor : public Executor {
 protected:
-    SerialExecutor() = default;
+    struct Tag {};
 
 public:
+    SerialExecutor(Tag) {};
+
     using Ref = std::shared_ptr<SerialExecutor>;
 
     static Ref create() {
-        return Ref {new SerialExecutor {}};
+        return std::make_shared<SerialExecutor>(Tag {});
     }
 
 public:
@@ -64,14 +66,15 @@ private:
 };
 
 class CancellableSerialExecutor : public SerialExecutor {
-protected:
-    CancellableSerialExecutor(StopToken token)
-        : _token(std::move(token)) {}
+public:
+    CancellableSerialExecutor(SerialExecutor::Tag tag, StopToken token)
+        : SerialExecutor(tag)
+        , _token(std::move(token)) {}
 
 public:
     using Ref = std::shared_ptr<CancellableSerialExecutor>;
     static Ref create(StopToken token) {
-        return Ref {new CancellableSerialExecutor {std::move(token)}};
+        return std::make_shared<CancellableSerialExecutor>(SerialExecutor::Tag {}, std::move(token));
     }
 
 public:
