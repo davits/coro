@@ -1,5 +1,6 @@
 #include <coro/coro.hpp>
 #include <coro/mutex.hpp>
+#include <coro/serial_executor.hpp>
 
 #include <gtest/gtest.h>
 

@@ -5,5 +5,5 @@
 #include "promise.inl.hpp"
 #include "executor.hpp"
 #include "stop_token.hpp"
-#include "executor.inl.hpp"
+#include "executor.hpp"
 #include "timeout.hpp"

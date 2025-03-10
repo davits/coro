@@ -1,4 +1,5 @@
 #include <coro/coro.hpp>
+#include <coro/serial_executor.hpp>
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -19,7 +20,7 @@ struct Cancelled {};
 
 coro::Task<void> simple0() {
     using namespace std::chrono_literals;
-    std::this_thread::sleep_for(0.1s);
+    co_await coro::timeout(100);
     auto stop = co_await stopToken;
     if (stop.stop_requested()) {
         throw Cancelled {};
