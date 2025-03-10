@@ -48,7 +48,6 @@ struct Awaitable {
         : _task(std::move(task)) {}
 
     Awaitable(Awaitable&&) = default;
-    Task _task;
 
     bool await_ready() const noexcept {
         return _task.ready();
@@ -69,6 +68,9 @@ struct Awaitable {
             return _task.value();
         }
     }
+
+private:
+    Task _task;
 };
 
 } // namespace coro

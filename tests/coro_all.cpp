@@ -1,8 +1,5 @@
-#include "coro/executor.hpp"
-#include "coro/promise.hpp"
-#include "coro/task.hpp"
-#include "coro/utils.hpp"
 #include <coro/coro.hpp>
+#include <coro/all.hpp>
 
 #include <gtest/gtest.h>
 
@@ -85,7 +82,9 @@ TEST(CoroAllTest, NestedCoroAllCalls) {
         co_return;
     }());
 
-    syncWait(coro::all(std::move(tasks)));
+    auto all_tasks = coro::all(std::move(tasks));
+    auto executor = coro::SerialExecutor::create();
+    executor->run(all_tasks);
 
     EXPECT_EQ(voidTaskCount, 3);
     EXPECT_EQ(results1[0], 10);

@@ -3,6 +3,7 @@
 #include "promise.hpp"
 #include "expected.hpp"
 #include "executor.hpp"
+#include "detail/utils.hpp"
 
 #include <coroutine>
 
@@ -11,7 +12,7 @@ namespace coro {
 class Executor;
 
 template <typename R>
-class Task {
+class Task : public detail::OnlyMovable {
 public:
     using Type = R;
     using promise_type = Promise<R>;
@@ -21,7 +22,12 @@ public:
         : _handle(handle) {}
 
     Task(Task&& o)
-        : _handle(std::exchange(o._handle, {})) {}
+        : _handle(std::exchange(o._handle, nullptr)) {}
+
+    Task& operator=(Task&& o) {
+        destroy();
+        _handle = std::exchange(o._handle, nullptr);
+    }
 
     ~Task() {
         if (_handle && !_handle.done()) {

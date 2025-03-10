@@ -3,7 +3,6 @@
 #include <exception>
 #include <stdexcept>
 #include <utility>
-#include <iostream>
 
 namespace coro {
 

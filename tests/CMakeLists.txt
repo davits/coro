@@ -15,3 +15,7 @@ add_test(NAME timeout COMMAND timeout)
 add_executable(coro_all coro_all.cpp)
 target_link_libraries(coro_all coro gtest_main)
 add_test(NAME coro_all COMMAND coro_all)
+
+add_executable(mutex mutex.cpp)
+target_link_libraries(mutex coro gtest_main)
+add_test(NAME mutex COMMAND mutex)

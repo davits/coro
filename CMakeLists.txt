@@ -22,11 +22,11 @@ if(CORO_TESTS)
     endif()
 
     if(CORO_SANITIZE_ASAN_AND_UBSAN)
-        set(SANITIZERS "${SANITIZERS} -fsanitize=address,undefined")
+        set(SANITIZERS ${SANITIZERS} -fsanitize=address,undefined)
     endif()
 
     if(CORO_SANITIZE_TSAN)
-        set(SANITIZERS "${SANITIZERS} -fsanitize=thread")
+        set(SANITIZERS ${SANITIZERS} -fsanitize=thread)
     endif()
 
     if(SANITIZERS)

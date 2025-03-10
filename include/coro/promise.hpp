@@ -5,13 +5,12 @@
 #include "expected.hpp"
 #include "executor.hpp"
 
+#include "traits.hpp"
+
 #include <coroutine>
 #include <exception>
 
 namespace coro {
-
-template <typename T>
-struct await_ready_trait;
 
 class PromiseBase {
 public:

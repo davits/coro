@@ -3,9 +3,11 @@
 #include "task.fwd.hpp"
 #include "stop_token.hpp"
 
+#include "detail/containers.hpp"
+
 #include <coroutine>
 #include <memory>
-#include <queue>
+#include <set>
 
 namespace coro {
 
@@ -25,11 +27,17 @@ public:
     friend class PromiseBase;
 
 public:
+    using handle_t = std::coroutine_handle<>;
+
     /// Override should schedule given task in some internal storage to be executed later.
-    virtual void schedule(std::coroutine_handle<> coro) = 0;
+    virtual void schedule(handle_t coro) = 0;
 
     /// Will be called when the given task needs timeout while it is waiting for something to happen.
-    virtual void timeout(uint32_t timeout, std::coroutine_handle<> coro) = 0;
+    virtual void timeout(uint32_t timeout, handle_t coro) = 0;
+
+    /// Will be called to indicate that given coroutine is suspended and waiting
+    /// for external event and will be scheduled in the future.
+    virtual void external(handle_t coro) = 0;
 
     friend class TimeoutAwaitable;
 };
@@ -53,16 +61,20 @@ public:
     template <typename R>
     R run(Task<R>& task);
 
-protected:
-    void schedule(std::coroutine_handle<> coro) override;
-
-    void timeout(uint32_t timeout, std::coroutine_handle<> coro) override;
+    using Executor::handle_t;
 
 protected:
-    bool step();
+    void schedule(handle_t coro) override;
+
+    void timeout(uint32_t timeout, handle_t coro) override;
+
+    void external(handle_t coro) override;
 
 private:
-    std::queue<std::coroutine_handle<>> _tasks;
+    detail::Queue<handle_t> _tasks;
+    std::set<handle_t> _external;
+    std::condition_variable _cv;
+    std::mutex _mutex;
 };
 
 class CancellableSerialExecutor : public SerialExecutor {
