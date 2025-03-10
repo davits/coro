@@ -8,9 +8,14 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(CORO_TESTS "Enable tests." OFF)
 option(CORO_SANITIZE_ASAN_AND_UBSAN "Enable ASan and UBSan." OFF)
 option(CORO_SANITIZE_TSAN "Enable TSan." OFF)
+option(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION "Abort when Task destructor is called for an unfinished/suspended task." OFF)
 
 add_library(coro INTERFACE)
 target_include_directories(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+if(CORO_TESTS OR CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
+    target_compile_definitions(coro INTERFACE CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
+endif()
 
 if(CORO_TESTS)
     target_compile_options(coro INTERFACE -Wall -Wextra -Wnewline-eof -Wformat -Werror)
