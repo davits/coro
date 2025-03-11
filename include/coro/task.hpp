@@ -30,9 +30,11 @@ public:
     }
 
     ~Task() {
+        #if defined(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
         if (_handle && !_handle.done()) {
             std::abort();
         }
+        #endif
         destroy();
     }
 
