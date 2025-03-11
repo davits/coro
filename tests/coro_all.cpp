@@ -13,23 +13,6 @@ coro::Task<int> makeIntTask(int x) {
     co_return x;
 };
 
-template <typename T>
-T syncWait(coro::Task<T>&& task) {
-    auto executor = coro::SerialExecutor::create();
-    std::optional<T> result;
-
-    auto t = [&result, &task]() -> coro::Task<void> { result = co_await std::move(task); }();
-    executor->run(t);
-
-    return std::move(*result);
-}
-
-template <>
-inline void syncWait(coro::Task<void>&& task) {
-    auto executor = coro::SerialExecutor::create();
-    executor->run(task);
-}
-
 TEST(CoroAllTest, MultipleIntTasks) {
     std::vector<coro::Task<int>> tasks;
     tasks.push_back(makeIntTask(10));
@@ -47,13 +30,16 @@ TEST(CoroAllTest, MultipleIntTasks) {
 TEST(CoroAllTest, MixedTasksAndSyncWait) {
     int voidTaskCount = 0;
 
-    auto results = syncWait(coro::all(makeVoidTask(voidTaskCount), makeIntTask(123), makeVoidTask(voidTaskCount)));
+    auto executor = coro::SerialExecutor::create();
+    auto task = coro::all(makeVoidTask(voidTaskCount), makeIntTask(123), makeVoidTask(voidTaskCount));
+    auto results = executor->run(task);
 
     EXPECT_EQ(voidTaskCount, 2);
     EXPECT_EQ(std::any_cast<int>(results[1]), 123);
 
     voidTaskCount = 0;
-    syncWait(coro::all(makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount)));
+    auto task1 = coro::all(makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount));
+    executor->run(task1);
     EXPECT_EQ(voidTaskCount, 3);
 }
 
@@ -78,10 +64,7 @@ TEST(CoroAllTest, NestedCoroAllCalls) {
     std::vector<coro::Task<void>> tasks;
     tasks.push_back(executeIntTasks(results1));
     tasks.push_back(executeMixedTasks(results2, voidTaskCount));
-    tasks.push_back([&]() -> coro::Task<void> {
-        ++voidTaskCount;
-        co_return;
-    }());
+    tasks.push_back(makeVoidTask(voidTaskCount));
 
     auto all_tasks = coro::all(std::move(tasks));
     auto executor = coro::SerialExecutor::create();

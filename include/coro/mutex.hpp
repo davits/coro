@@ -25,7 +25,7 @@ class MutexAwaitable;
  */
 class Mutex {
 public:
-    Mutex() {}
+    Mutex() = default;
 
     ~Mutex() {
         if (!_awaiters.empty()) {
@@ -63,7 +63,7 @@ private:
 private:
     detail::Queue<detail::MutexAwaitable*> _awaiters;
     mutable std::mutex _mutex;
-    bool _locked;
+    bool _locked = false;
 };
 
 class ScopedLock : public detail::OnlyMovable {

@@ -7,6 +7,8 @@
 
 namespace coro {
 
+namespace detail {
+
 template <typename T, typename RType = T>
 Task<void> runAndNotify(Task<T> task, Latch& latch, std::vector<RType>& results, int idx) {
     if constexpr (!std::is_same_v<T, void>) {
@@ -22,18 +24,20 @@ inline Task<void> runAndNotify(Task<void> task, Latch& latch) {
     latch.count_down();
 }
 
+} // namespace detail
+
 template <typename... Args>
 concept AllVoid = (std::same_as<Args, void> && ...);
 
 template <AllVoid... Args>
-Task<void> all(Task<Args>&&... tasks) {
+Task<void> all(Task<Args>... tasks) {
     Latch latch {sizeof...(tasks)};
     auto executor = co_await currentExecutor;
 
     std::vector<Task<void>> runningTasks;
     runningTasks.reserve(sizeof...(tasks));
 
-    (runningTasks.push_back(runAndNotify(std::move(tasks), latch)), ...);
+    (runningTasks.push_back(detail::runAndNotify(std::move(tasks), latch)), ...);
 
     for (auto& task : runningTasks) {
         task.scheduleOn(executor);
@@ -43,7 +47,7 @@ Task<void> all(Task<Args>&&... tasks) {
 }
 
 template <typename... Args>
-Task<std::vector<std::any>> all(Task<Args>&&... tasks) {
+Task<std::vector<std::any>> all(Task<Args>... tasks) {
     std::vector<std::any> results(sizeof...(tasks));
     Latch latch {sizeof...(tasks)};
     auto executor = co_await currentExecutor;
@@ -52,7 +56,7 @@ Task<std::vector<std::any>> all(Task<Args>&&... tasks) {
     runningTasks.reserve(sizeof...(tasks));
 
     size_t idx = 0;
-    (runningTasks.push_back(runAndNotify(std::move(tasks), latch, results, idx++)), ...);
+    (runningTasks.push_back(detail::runAndNotify(std::move(tasks), latch, results, idx++)), ...);
 
     for (auto& task : runningTasks) {
         task.scheduleOn(executor);
@@ -77,7 +81,7 @@ Task<std::vector<T>> all(std::vector<Task<T>> tasks) {
 
     size_t idx = 0;
     for (auto& task : tasks) {
-        runningTasks.push_back(runAndNotify(std::move(task), latch, results, idx++));
+        runningTasks.push_back(detail::runAndNotify(std::move(task), latch, results, idx++));
     }
 
     for (auto& task : runningTasks) {
@@ -99,7 +103,7 @@ inline Task<void> all(std::vector<Task<void>> tasks) {
     helperTasks.reserve(tasks.size());
 
     for (auto& task : tasks) {
-        helperTasks.push_back(runAndNotify(std::move(task), latch));
+        helperTasks.push_back(detail::runAndNotify(std::move(task), latch));
     }
     tasks.clear();
 
