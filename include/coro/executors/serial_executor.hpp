@@ -1,9 +1,9 @@
 #pragma once
 
-#include "detail/containers.hpp"
-#include "executor.hpp"
-#include "stop_token.hpp"
-#include "task.hpp"
+#include "../detail/containers.hpp"
+#include "../core/executor.hpp"
+#include "../core/stop_token.hpp"
+#include "../core/task.hpp"
 
 #include <condition_variable>
 #include <mutex>
@@ -50,6 +50,18 @@ public:
             return task.value();
         }
     }
+
+    // template <typename R>
+    // std::future<R> schedule(Task<R> task) {
+    //     std::promise<R> promise;
+    //     auto future = promise.get_future();
+    //     auto wrapper = [](Task<R> task, std::promise<R> promise) -> Task<void> {
+    //         promise.set_value(co_await std::move(task));
+    //     }();
+    //     wrapper.scheduleOn(shared_from_this());
+    //     _scheduled.push(std::move(wrapper)); // save wrapper to ensure lifetime
+    //     return future;
+    // }
 
     using Executor::handle_t;
 

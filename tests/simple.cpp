@@ -1,5 +1,5 @@
 #include <coro/coro.hpp>
-#include <coro/serial_executor.hpp>
+#include <coro/executors/serial_executor.hpp>
 
 #include <gtest/gtest.h>
 

@@ -1,6 +1,6 @@
 #include <coro/coro.hpp>
-#include <coro/all.hpp>
-#include <coro/serial_executor.hpp>
+#include <coro/helpers/all.hpp>
+#include <coro/executors/serial_executor.hpp>
 
 #include <gtest/gtest.h>
 

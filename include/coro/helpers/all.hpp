@@ -1,8 +1,9 @@
 #pragma once
 
-#include "promise.hpp"
-#include "task.hpp"
-#include "latch.hpp"
+#include "../core/promise.hpp"
+#include "../core/task.hpp"
+#include "../sync/latch.hpp"
+
 #include <any>
 
 namespace coro {

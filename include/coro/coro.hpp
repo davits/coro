@@ -1,9 +1,8 @@
 #pragma once
 
-#include "promise.hpp"
-#include "task.hpp"
-#include "promise.inl.hpp"
-#include "executor.hpp"
-#include "stop_token.hpp"
-#include "executor.hpp"
-#include "timeout.hpp"
+#include "core/promise.hpp"
+#include "core/task.hpp"
+#include "core/promise.inl.hpp"
+#include "core/executor.hpp"
+#include "core/stop_token.hpp"
+#include "core/executor.hpp"

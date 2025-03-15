@@ -1,9 +1,9 @@
 #pragma once
 
-#include "executor.hpp"
-#include "traits.hpp"
+#include "../core/executor.hpp"
+#include "../core/traits.hpp"
 
-#include "detail/containers.hpp"
+#include "../detail/containers.hpp"
 
 namespace coro {
 

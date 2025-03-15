@@ -1,9 +1,9 @@
 #pragma once
 
-#include "detail/utils.hpp"
-#include "detail/containers.hpp"
-#include "traits.hpp"
-#include "executor.hpp"
+#include "../detail/utils.hpp"
+#include "../detail/containers.hpp"
+#include "../core/traits.hpp"
+#include "../core/executor.hpp"
 
 #include <coroutine>
 

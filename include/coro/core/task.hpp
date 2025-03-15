@@ -3,9 +3,10 @@
 #include "promise.hpp"
 #include "expected.hpp"
 #include "executor.hpp"
-#include "detail/utils.hpp"
+#include "../detail/utils.hpp"
 
 #include <coroutine>
+#include <future>
 
 namespace coro {
 
@@ -30,11 +31,11 @@ public:
     }
 
     ~Task() {
-        #if defined(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
+#if defined(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
         if (_handle && !_handle.done()) {
             std::abort();
         }
-        #endif
+#endif
         destroy();
     }
 
@@ -69,7 +70,7 @@ public:
     }
 
 public:
-    void scheduleOn(Executor::Ref executor) {
+    void scheduleOn(Executor::Ref executor) & {
         auto& p = promise();
         p.executor = std::move(executor);
         p.executor->schedule(_handle);

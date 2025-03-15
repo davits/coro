@@ -1,8 +1,8 @@
 #pragma once
 
-#include "executor.hpp"
-#include "traits.hpp"
-#include "detail/containers.hpp"
+#include "../core/executor.hpp"
+#include "../core/traits.hpp"
+#include "../detail/containers.hpp"
 
 #include <coroutine>
 #include <queue>
