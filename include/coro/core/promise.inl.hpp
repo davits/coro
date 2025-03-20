@@ -13,11 +13,11 @@ Awaitable<Task<U>> PromiseBase::await_transform(Task<U>&& task) {
 
 template <typename R>
 Task<R> Promise<R>::get_return_object() {
-    return Task<R>(handle_t::from_promise(*this));
+    return Task<R>(CoroHandle::fromTypedHandle(handle_t::from_promise(*this)));
 }
 
 inline Task<void> Promise<void>::get_return_object() {
-    return Task<void>(handle_t::from_promise(*this));
+    return Task<void>(CoroHandle::fromTypedHandle(handle_t::from_promise(*this)));
 }
 
 } // namespace coro

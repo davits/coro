@@ -19,3 +19,7 @@ add_test(NAME coro_all COMMAND coro_all)
 add_executable(mutex mutex.cpp)
 target_link_libraries(mutex coro gtest_main)
 add_test(NAME mutex COMMAND mutex)
+
+add_executable(lifetime lifetime.cpp)
+target_link_libraries(lifetime coro gtest_main)
+add_test(NAME lifetime COMMAND lifetime)

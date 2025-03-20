@@ -1,5 +1,7 @@
 #pragma once
 
+#include "handle.hpp"
+
 #include <utility>
 #include <coroutine>
 
@@ -55,9 +57,10 @@ struct Awaitable {
 
     template <typename Promise>
     void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
-        auto& promise = continuation.promise();
-        _task.promise().continuation = continuation;
-        _task.scheduleOn(promise.executor);
+        auto& continuationPromise = continuation.promise();
+        _task.promise().continuation = CoroHandle::fromTypedHandle(continuation);
+        _task.promise().context = continuationPromise.context;
+        _task.schedule();
     }
 
     Return await_resume() {
