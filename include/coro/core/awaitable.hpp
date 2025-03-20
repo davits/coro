@@ -1,5 +1,8 @@
 #pragma once
 
+#include "handle.hpp"
+#include "../detail/utils.hpp"
+
 #include <utility>
 #include <coroutine>
 
@@ -26,20 +29,6 @@ struct ReadyAwaitable {
     }
 };
 
-template <typename F>
-class AtExit {
-public:
-    AtExit(F f)
-        : _callback(std::move(f)) {}
-
-    ~AtExit() {
-        _callback();
-    }
-
-private:
-    F _callback;
-};
-
 template <typename Task>
 struct Awaitable {
     using Return = Task::Type;
@@ -55,13 +44,15 @@ struct Awaitable {
 
     template <typename Promise>
     void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
-        auto& promise = continuation.promise();
-        _task.promise().continuation = continuation;
-        _task.scheduleOn(promise.executor);
+        auto& continuationPromise = continuation.promise();
+        _task.promise().continuation = CoroHandle::fromTypedHandle(continuation);
+        _task.promise().context = continuationPromise.context;
+        _task.schedule();
     }
 
     Return await_resume() {
-        AtExit exit {[this]() { _task.destroy(); }};
+        // eagerly destroy completed task at the end of the scope
+        detail::AtExit exit {[this]() noexcept { _task.destroy(); }};
         if constexpr (std::is_move_constructible_v<Return>) {
             return std::move(_task).value();
         } else {

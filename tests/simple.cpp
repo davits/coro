@@ -23,7 +23,7 @@ coro::Task<double> simple() {
     co_return static_cast<double>(x1) / static_cast<double>(x2);
 }
 
-TEST(SimpleTest, Builtin) {
+TEST(Simple, Builtin) {
     auto e = coro::SerialExecutor::create();
     auto task = simple();
     auto d = e->run(task);
@@ -57,7 +57,7 @@ coro::Task<int> errorenous2() {
     co_return co_await errorenous1();
 }
 
-TEST(SimpleTest, Error) {
+TEST(Simple, Error) {
     auto e = coro::SerialExecutor::create();
     auto task = try_errorenous2();
     auto result = e->run(task);
@@ -84,7 +84,7 @@ coro::Task<void> error_void2() {
     co_await error_void1();
 }
 
-TEST(SimpleTest, ThrowingVoidReturn) {
+TEST(Simple, ThrowingVoidReturn) {
     EXPECT_THROW(
         {
             auto e = coro::SerialExecutor::create();

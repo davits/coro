@@ -28,9 +28,7 @@ inline Task<void> runAndNotify(Task<void> task, Latch& latch) {
 } // namespace detail
 
 template <typename... Args>
-concept AllVoid = (std::same_as<Args, void> && ...);
-
-template <AllVoid... Args>
+    requires(std::same_as<Args, void> && ...)
 Task<void> all(Task<Args>... tasks) {
     Latch latch {sizeof...(tasks)};
     auto executor = co_await currentExecutor;
@@ -45,6 +43,28 @@ Task<void> all(Task<Args>... tasks) {
     }
 
     co_await latch;
+}
+
+template <typename T, typename... Args>
+    requires(std::same_as<Args, T> && ... && !std::same_as<T, void>)
+Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
+    constexpr size_t count = 1 + sizeof...(rest);
+    std::vector<int> results(count);
+    Latch latch {count};
+    auto executor = co_await currentExecutor;
+
+    std::vector<Task<void>> wrapperTasks;
+    wrapperTasks.reserve(count);
+
+    wrapperTasks.push_back(detail::runAndNotify(std::move(first), latch, results, 0));
+    size_t idx = 1;
+    (wrapperTasks.push_back(detail::runAndNotify(std::move(rest), latch, results, idx++)), ...);
+
+    for (auto& task : wrapperTasks) {
+        task.scheduleOn(executor);
+    }
+    co_await latch;
+    co_return std::move(results);
 }
 
 template <typename... Args>

@@ -3,6 +3,8 @@
 #include "promise.hpp"
 #include "expected.hpp"
 #include "executor.hpp"
+#include "handle.hpp"
+
 #include "../detail/utils.hpp"
 
 #include <coroutine>
@@ -17,9 +19,8 @@ class Task : public detail::OnlyMovable {
 public:
     using Type = R;
     using promise_type = Promise<R>;
-    using handle_t = promise_type::handle_t;
 
-    Task(handle_t handle)
+    Task(CoroHandle handle)
         : _handle(handle) {}
 
     Task(Task&& o)
@@ -40,12 +41,8 @@ public:
     }
 
 public:
-    // TODO make private with friend promise
     void destroy() {
-        if (_handle) {
-            _handle.destroy();
-            _handle = nullptr;
-        }
+        _handle.reset();
     }
 
 public:
@@ -62,22 +59,44 @@ public:
     }
 
     const promise_type& promise() const {
-        return _handle.promise();
+        return _handle.promise<promise_type>();
     }
 
     promise_type& promise() {
-        return _handle.promise();
+        return _handle.promise<promise_type>();
     }
 
 public:
     void scheduleOn(Executor::Ref executor) & {
         auto& p = promise();
-        p.executor = std::move(executor);
-        p.executor->schedule(_handle);
+        p.context.executor = std::move(executor);
+        p.context.executor->schedule(_handle);
+    }
+
+    void schedule() & {
+        auto& p = promise();
+        p.context.executor->schedule(_handle);
+    }
+
+    const StopToken& stopToken() const {
+        return promise().context.stopToken;
+    }
+
+    void setStopToken(StopToken token) {
+        auto& p = promise();
+        p.context.stopToken = std::move(token);
+    }
+
+    const UserData::Ref& userData() const {
+        return promise().context.userData;
+    }
+
+    void setUserData(UserData::Ref userData) {
+        promise().context.userData = std::move(userData);
     }
 
 private:
-    handle_t _handle;
+    CoroHandle _handle;
 };
 
 } // namespace coro

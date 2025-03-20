@@ -13,7 +13,7 @@ coro::Task<int> makeIntTask(int x) {
     co_return x;
 };
 
-TEST(CoroAllTest, MultipleIntTasks) {
+TEST(CoroAll, MultipleIntTasks) {
     std::vector<coro::Task<int>> tasks;
     tasks.push_back(makeIntTask(10));
     tasks.push_back(makeIntTask(20));
@@ -27,7 +27,7 @@ TEST(CoroAllTest, MultipleIntTasks) {
     EXPECT_EQ(results[2], 30);
 }
 
-TEST(CoroAllTest, MixedTasksAndSyncWait) {
+TEST(CoroAll, MixedTasksAndSyncWait) {
     int voidTaskCount = 0;
 
     auto executor = coro::SerialExecutor::create();
@@ -56,7 +56,7 @@ coro::Task<void> executeIntTasks(std::vector<int>& results) {
     results = co_await coro::all(std::move(tasks));
 }
 
-TEST(CoroAllTest, NestedCoroAllCalls) {
+TEST(CoroAll, NestedCoroAllCalls) {
     std::vector<int> results1;
     std::vector<std::any> results2;
     int voidTaskCount = 0;
