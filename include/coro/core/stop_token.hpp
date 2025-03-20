@@ -1,5 +1,7 @@
 #pragma once
 
+#include "traits.hpp"
+
 #include <memory>
 
 namespace coro {
@@ -31,6 +33,8 @@ private:
 class StopToken {
 public:
     StopToken() = default;
+    StopToken(nullptr_t)
+        : StopToken() {}
 
     StopToken(const StopToken&) = default;
     StopToken(StopToken&&) = default;

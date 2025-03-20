@@ -9,6 +9,7 @@
 #include <mutex>
 #include <set>
 #include <thread>
+#include <iostream>
 
 namespace coro {
 
@@ -31,6 +32,28 @@ public:
     template <typename R>
     R run(Task<R>& task) {
         task.scheduleOn(shared_from_this());
+        runScheduled();
+        if constexpr (std::move_constructible<R>) {
+            return std::move(task).value();
+        } else {
+            return task.value();
+        }
+    }
+
+    template <typename R>
+    std::future<R> future(Task<R> task) {
+        std::promise<R> promise;
+        auto future = promise.get_future();
+        auto wrapper = [](Task<R> task, std::promise<R> promise) -> Task<void> {
+            promise.set_value(co_await std::move(task));
+        }(std::move(task), std::move(promise));
+        wrapper.scheduleOn(shared_from_this());
+        wrapper.destroy();
+        return future;
+    }
+
+    void runScheduled() {
+        auto keepAlive = shared_from_this();
         while (true) {
             std::unique_lock lock {_mutex};
             if (_tasks.empty()) {
@@ -44,29 +67,10 @@ public:
             lock.unlock();
             task.resume();
         }
-        if constexpr (std::move_constructible<R>) {
-            return std::move(task).value();
-        } else {
-            return task.value();
-        }
     }
 
-    // template <typename R>
-    // std::future<R> schedule(Task<R> task) {
-    //     std::promise<R> promise;
-    //     auto future = promise.get_future();
-    //     auto wrapper = [](Task<R> task, std::promise<R> promise) -> Task<void> {
-    //         promise.set_value(co_await std::move(task));
-    //     }();
-    //     wrapper.scheduleOn(shared_from_this());
-    //     _scheduled.push(std::move(wrapper)); // save wrapper to ensure lifetime
-    //     return future;
-    // }
-
-    using Executor::handle_t;
-
 protected:
-    void schedule(handle_t coro) override {
+    void schedule(CoroHandle coro) override {
         {
             std::scoped_lock lock {_mutex};
             _tasks.push(coro);
@@ -75,45 +79,16 @@ protected:
         _cv.notify_one();
     }
 
-    void timeout(uint32_t timeout, handle_t coro) override {
-        external(coro);
-        std::thread([this, timeout, coro]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds {timeout});
-            schedule(coro);
-        }).detach();
-    }
-
-    void external(handle_t coro) override {
+    void external(CoroHandle coro) override {
         std::scoped_lock lock {_mutex};
         _external.insert(coro);
     }
 
 private:
-    detail::Queue<handle_t> _tasks;
-    std::set<handle_t> _external;
+    detail::Queue<CoroHandle> _tasks;
+    std::set<CoroHandle> _external;
     std::condition_variable _cv;
     std::mutex _mutex;
-};
-
-class CancellableSerialExecutor : public SerialExecutor {
-public:
-    CancellableSerialExecutor(SerialExecutor::Tag tag, StopToken token)
-        : SerialExecutor(tag)
-        , _token(std::move(token)) {}
-
-public:
-    using Ref = std::shared_ptr<CancellableSerialExecutor>;
-    static Ref create(StopToken token) {
-        return std::make_shared<CancellableSerialExecutor>(SerialExecutor::Tag {}, std::move(token));
-    }
-
-public:
-    StopToken stopToken() {
-        return _token;
-    }
-
-private:
-    StopToken _token;
 };
 
 } // namespace coro

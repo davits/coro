@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(CORO_TESTS "Enable tests." OFF)
-option(CORO_SANITIZE_ASAN_AND_UBSAN "Enable ASan and UBSan." OFF)
+option(CORO_SANITIZE_ASAN_AND_UBSAN "Enable ASan and UBSan." ON)
 option(CORO_SANITIZE_TSAN "Enable TSan." OFF)
 option(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION "Abort when Task destructor is called for an unfinished/suspended task." OFF)
 
