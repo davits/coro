@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/executor.hpp"
+#include "../core/promise_base.hpp"
 #include "../core/traits.hpp"
 #include "../detail/containers.hpp"
 
@@ -19,7 +20,7 @@ class PipeDataReader;
 template <typename T>
 class PipeDataAwaitable {
 public:
-    PipeDataAwaitable(PipeDataReader<T>& other, ExecutorRef executor);
+    PipeDataAwaitable(PipeDataReader<T>& other, Executor::Ref executor);
 
     PipeDataAwaitable& operator co_await();
 
@@ -36,8 +37,8 @@ private:
 private:
     AsyncPipe<T>& _pipe;
     std::optional<T> _data;
-    ExecutorRef _executor;
-    std::coroutine_handle<> _continuation;
+    Executor::Ref _executor;
+    CoroHandle _continuation;
 };
 
 template <typename T>
@@ -104,7 +105,7 @@ private:
 };
 
 template <typename T>
-PipeDataAwaitable<T>::PipeDataAwaitable(PipeDataReader<T>& reader, ExecutorRef executor)
+PipeDataAwaitable<T>::PipeDataAwaitable(PipeDataReader<T>& reader, Executor::Ref executor)
     : _pipe(reader._pipe)
     , _executor(std::move(executor)) {}
 
@@ -143,8 +144,8 @@ void PipeDataAwaitable<T>::dataAvailable(T&& data) {
 
 template <typename T>
 struct await_ready_trait<PipeDataReader<T>> {
-    static PipeDataAwaitable<T> await_transform(const ExecutorRef& executor, PipeDataReader<T>&& awaitable) {
-        return PipeDataAwaitable<T> {awaitable, executor};
+    static PipeDataAwaitable<T> await_transform(const TaskContext& context, PipeDataReader<T>&& awaitable) {
+        return PipeDataAwaitable<T> {awaitable, context.executor};
     }
 };
 

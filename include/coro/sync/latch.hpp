@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/executor.hpp"
+#include "../core/promise_base.hpp"
 #include "../core/traits.hpp"
 
 #include "../detail/containers.hpp"
@@ -29,6 +30,8 @@ public:
         : _count(count) {
         //
     }
+
+    Latch(const Latch&) = delete;
 
     /**
      * @brief Decrements the latch counter and resumes awaiting coroutines
@@ -73,8 +76,12 @@ public:
 
     template <typename Promise>
     bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
-        _continuation = continuation;
-        return _latch->queue(this);
+        _continuation = CoroHandle::fromTypedHandle(continuation);
+        const bool queued = _latch->queue(this);
+        if (queued) {
+            _executor->external(_continuation);
+        }
+        return queued;
     }
 
     void await_resume() noexcept {}
@@ -88,7 +95,7 @@ private:
 private:
     Latch* _latch;
     Executor::Ref _executor;
-    std::coroutine_handle<> _continuation;
+    CoroHandle _continuation;
 };
 
 } // namespace detail
@@ -107,8 +114,8 @@ inline void Latch::count_down(std::ptrdiff_t n) {
 
 template <>
 struct await_ready_trait<Latch> {
-    static detail::LatchAwaitable await_transform(const Executor::Ref& executor, Latch& latch) {
-        return detail::LatchAwaitable {&latch, executor};
+    static detail::LatchAwaitable await_transform(const TaskContext& context, Latch& latch) {
+        return detail::LatchAwaitable {&latch, context.executor};
     }
 };
 

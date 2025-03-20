@@ -1,9 +1,10 @@
 #pragma once
 
-#include "../detail/utils.hpp"
-#include "../detail/containers.hpp"
-#include "../core/traits.hpp"
 #include "../core/executor.hpp"
+#include "../core/task_context.hpp"
+#include "../core/traits.hpp"
+#include "../detail/containers.hpp"
+#include "../detail/utils.hpp"
 
 #include <coroutine>
 
@@ -94,7 +95,7 @@ class MutexAwaitable {
 private:
     friend await_ready_trait<Mutex>;
 
-    MutexAwaitable(Mutex* mutex, ExecutorRef executor)
+    MutexAwaitable(Mutex* mutex, Executor::Ref executor)
         : _mutex(mutex)
         , _executor(std::move(executor)) {}
 
@@ -105,10 +106,10 @@ public:
 
     template <typename Promise>
     bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
-        _continuation = continuation;
+        _continuation = CoroHandle::fromTypedHandle(continuation);
         const bool queued = _mutex->lock_or_queue(this);
         if (queued) {
-            _executor->external(continuation);
+            _executor->external(_continuation);
         }
         return queued;
     }
@@ -126,7 +127,7 @@ private:
 private:
     Mutex* _mutex;
     Executor::Ref _executor;
-    std::coroutine_handle<> _continuation;
+    CoroHandle _continuation;
 };
 
 } // namespace detail
@@ -145,8 +146,8 @@ inline void Mutex::unlock() {
 
 template <>
 struct await_ready_trait<Mutex> {
-    static detail::MutexAwaitable await_transform(const Executor::Ref& executor, Mutex& mutex) {
-        return detail::MutexAwaitable {&mutex, executor};
+    static detail::MutexAwaitable await_transform(const TaskContext& context, Mutex& mutex) {
+        return detail::MutexAwaitable {&mutex, context.executor};
     }
 };
 

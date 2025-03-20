@@ -12,7 +12,7 @@ coro::Task<void> advance(size_t& counter, coro::Mutex& mutex) {
     co_return;
 }
 
-TEST(MutexText, DataRace) {
+TEST(Mutex, DataRace) {
     coro::Mutex mutex;
     size_t counter = 0;
     std::vector<std::thread> threads;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "handle.hpp"
+
 #include <coroutine>
 #include <memory>
 
@@ -15,17 +17,12 @@ protected:
     Executor() = default;
 
 public:
-    using handle_t = std::coroutine_handle<>;
-
     /// Override should schedule given task in some internal storage to be executed later.
-    virtual void schedule(handle_t coro) = 0;
-
-    /// Will be called when the given task needs timeout while it is waiting for something to happen.
-    virtual void timeout(uint32_t timeout, handle_t coro) = 0;
+    virtual void schedule(CoroHandle coro) = 0;
 
     /// Will be called to indicate that given coroutine is suspended and waiting
     /// for external event and will be scheduled in the future.
-    virtual void external(handle_t coro) = 0;
+    virtual void external(CoroHandle coro) = 0;
 };
 
 } // namespace coro
