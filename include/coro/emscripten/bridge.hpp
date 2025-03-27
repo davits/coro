@@ -30,8 +30,7 @@ private:
 struct ValAwaitable {
     ValAwaitable(coro::Executor::Ref executor, emscripten::val&& val)
         : _promise(std::move(val))
-        , _executor(std::move(executor))
-        , _result() {}
+        , _executor(std::move(executor)) {}
 
     ValAwaitable& operator co_await() {
         detail::_coro_lib_await_promise(_promise.as_handle(), this);
@@ -75,7 +74,7 @@ struct ValAwaitable {
 
 private:
     emscripten::val _promise;
-    emscripten::val _result = emscripten::val::undefined();
+    emscripten::val _result;
     coro::Executor::Ref _executor = nullptr;
     CoroHandle _continuation;
     bool _ready = false;
