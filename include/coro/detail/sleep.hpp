@@ -8,8 +8,6 @@
 #include <mutex>
 #include <thread>
 
-#include <iostream>
-
 namespace coro {
 
 namespace detail {
@@ -76,12 +74,10 @@ private:
     std::atomic<bool> _loop = true;
 };
 
-} // namespace detail
-
-class TimeoutAwaitable {
+class SleepAwaitable {
 public:
-    TimeoutAwaitable(uint32_t timeout)
-        : _timeout(timeout) {}
+    SleepAwaitable(uint32_t sleep)
+        : _sleep(sleep) {}
 
     bool await_ready() noexcept {
         return false;
@@ -93,22 +89,24 @@ public:
         auto handle = CoroHandle::fromTypedHandle(continuation);
         auto& promise = handle.promise();
         promise.context.executor->external(handle);
-        scheduler.timeout(std::chrono::milliseconds {_timeout}, std::move(handle));
+        scheduler.timeout(std::chrono::milliseconds {_sleep}, std::move(handle));
     }
 
     void await_resume() noexcept {}
 
 private:
-    uint32_t _timeout;
+    uint32_t _sleep;
 };
 
-inline TimeoutAwaitable timeout(uint32_t timeout) {
-    return TimeoutAwaitable {timeout};
+} // namespace detail
+
+inline detail::SleepAwaitable sleep(uint32_t time) {
+    return detail::SleepAwaitable {time};
 }
 
 template <>
-struct await_ready_trait<TimeoutAwaitable> {
-    static TimeoutAwaitable&& await_transform(const TaskContext&, TimeoutAwaitable&& awaitable) {
+struct await_ready_trait<detail::SleepAwaitable> {
+    static detail::SleepAwaitable&& await_transform(const TaskContext&, detail::SleepAwaitable&& awaitable) {
         return std::move(awaitable);
     }
 };

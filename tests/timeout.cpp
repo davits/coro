@@ -1,13 +1,13 @@
 #include <coro/coro.hpp>
 #include <coro/executors/serial_executor.hpp>
-#include <coro/helpers/timeout.hpp>
+#include <coro/sleep.hpp>
 #include <coro/helpers/all.hpp>
 
 #include <vector>
 #include <gtest/gtest.h>
 
 coro::Task<void> simple0() {
-    co_await coro::timeout(100);
+    co_await coro::sleep(100);
 }
 
 coro::Task<int> simple1() {

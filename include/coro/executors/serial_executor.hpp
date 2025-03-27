@@ -9,7 +9,6 @@
 #include <mutex>
 #include <set>
 #include <thread>
-#include <iostream>
 
 namespace coro {
 

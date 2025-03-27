@@ -1,6 +1,6 @@
 #include <coro/coro.hpp>
 #include <coro/executors/serial_executor.hpp>
-#include <coro/helpers/timeout.hpp>
+#include <coro/sleep.hpp>
 
 #include <gtest/gtest.h>
 
@@ -37,7 +37,7 @@ coro::Task<int> foo(bool timeout) {
 template <>
 coro::Task<int> foo<0>(bool timeout) {
     if (timeout) {
-        co_await coro::timeout(500);
+        co_await coro::sleep(500);
     }
     co_return 42;
 }
@@ -73,7 +73,7 @@ TEST(NoReference, Lifetime) {
     std::this_thread::sleep_for(200ms);
     EXPECT_EQ(*counter, 1); // still there because there is an external timeout task holding executor
     result = future.get();
+    thread.join();
     EXPECT_EQ(*counter, 0); // executor was destroyed
     EXPECT_EQ(result, 42);
-    thread.join();
 }

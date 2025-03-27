@@ -9,10 +9,23 @@ option(CORO_TESTS "Enable tests." OFF)
 option(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION "Abort when Task destructor is called for an unfinished/suspended task." OFF)
 
 add_library(coro INTERFACE)
-target_include_directories(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+if(CORO_TESTS)
+    target_include_directories(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+else()
+    target_include_directories(coro SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+endif()
+
+if(EMSCRIPTEN)
+    target_link_options(coro INTERFACE --js-library ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.js)
+    target_sources(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.cpp)
+endif()
 
 if(CORO_TESTS OR CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
     target_compile_definitions(coro INTERFACE CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
+endif()
+
+if(EMSCRIPTEN)
+    target_compile_definitions(coro INTERFACE CORO_EMSCRIPTEN)
 endif()
 
 if(CORO_TESTS)

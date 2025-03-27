@@ -1,12 +1,12 @@
 #include <coro/coro.hpp>
 #include <coro/sync/latch.hpp>
 #include <coro/executors/serial_executor.hpp>
-#include <coro/helpers/timeout.hpp>
+#include <coro/sleep.hpp>
 
 #include <gtest/gtest.h>
 
 coro::Task<int> work() {
-    co_await coro::timeout(100);
+    co_await coro::sleep(100);
     co_return 42;
 }
 

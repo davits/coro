@@ -1,8 +1,9 @@
 #pragma once
 
+#include <optional>
 #include <mutex>
 #include <queue>
-#include <optional>
+#include <stack>
 
 namespace coro::detail {
 
@@ -36,6 +37,38 @@ public:
 
 private:
     std::queue<T> _queue;
+};
+
+template <typename T>
+class Stack {
+public:
+    Stack() = default;
+
+    void push(T data) {
+        _stack.push(std::move(data));
+    }
+
+    std::optional<T> pop() {
+        if (_stack.empty()) return std::nullopt;
+        std::optional result {std::move(_stack.top())};
+        _stack.pop();
+        return result;
+    }
+
+    bool empty() const {
+        return _stack.empty();
+    }
+
+    T& top() {
+        return _stack.front();
+    }
+
+    const T& top() const {
+        return _stack.front();
+    }
+
+private:
+    std::stack<T> _stack;
 };
 
 /**

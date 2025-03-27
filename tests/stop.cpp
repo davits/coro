@@ -1,6 +1,6 @@
 #include <coro/coro.hpp>
 #include <coro/executors/serial_executor.hpp>
-#include <coro/helpers/timeout.hpp>
+#include <coro/sleep.hpp>
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -10,7 +10,7 @@ struct Cancelled {};
 
 coro::Task<void> simple0() {
     using namespace std::chrono_literals;
-    co_await coro::timeout(100);
+    co_await coro::sleep(100);
     auto stop = co_await coro::currentStopToken;
     if (stop.stop_requested()) {
         throw Cancelled {};
