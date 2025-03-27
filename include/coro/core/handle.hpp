@@ -1,6 +1,7 @@
 #pragma once
 
 #include <coroutine>
+#include <cstddef>
 
 namespace coro {
 
@@ -35,7 +36,7 @@ private:
 public:
     CoroHandle() = default;
 
-    CoroHandle(nullptr_t);
+    CoroHandle(std::nullptr_t);
 
     ~CoroHandle();
 

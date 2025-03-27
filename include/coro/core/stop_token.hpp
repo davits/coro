@@ -2,6 +2,7 @@
 
 #include "traits.hpp"
 
+#include <cstddef>
 #include <memory>
 
 namespace coro {
@@ -33,7 +34,7 @@ private:
 class StopToken {
 public:
     StopToken() = default;
-    StopToken(nullptr_t)
+    StopToken(std::nullptr_t)
         : StopToken() {}
 
     StopToken(const StopToken&) = default;

@@ -1,14 +1,11 @@
 #pragma once
 
+#include "../coro.hpp"
 #include "../detail/containers.hpp"
-#include "../core/executor.hpp"
-#include "../core/stop_token.hpp"
-#include "../core/task.hpp"
 
 #include <condition_variable>
 #include <mutex>
 #include <set>
-#include <thread>
 
 namespace coro {
 

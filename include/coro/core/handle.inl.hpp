@@ -17,7 +17,7 @@ inline CoroHandle::CoroHandle(handle_t handle, PromiseBase* promise)
     ++(_promise->_useCount);
 }
 
-inline CoroHandle::CoroHandle(nullptr_t)
+inline CoroHandle::CoroHandle(std::nullptr_t)
     : _handle(nullptr)
     , _promise(nullptr) {}
 
