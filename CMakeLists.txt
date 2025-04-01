@@ -8,7 +8,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(CORO_TESTS "Enable tests." OFF)
 option(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION "Abort when Task destructor is called for an unfinished/suspended task." OFF)
 
-add_library(coro INTERFACE)
+# Create dummy file to be able to create a STATIC library
+set(DUMMY_FILE ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp)
+if(NOT EXISTS ${DUMMY_FILE})
+    file(TOUCH ${DUMMY_FILE})
+endif()
+
+# Main library of this project
+add_library(coro STATIC ${DUMMY_FILE})
+
 if(CORO_TESTS)
     target_include_directories(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 else()
@@ -16,16 +24,16 @@ else()
 endif()
 
 if(EMSCRIPTEN)
-    target_link_options(coro INTERFACE --js-library ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.js)
-    target_sources(coro INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.cpp)
+    target_link_options(coro PUBLIC --js-library ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.js)
+    target_sources(coro PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.cpp)
 endif()
 
 if(CORO_TESTS OR CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
-    target_compile_definitions(coro INTERFACE CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
+    target_compile_definitions(coro PUBLIC CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
 endif()
 
 if(EMSCRIPTEN)
-    target_compile_definitions(coro INTERFACE CORO_EMSCRIPTEN)
+    target_compile_definitions(coro PUBLIC CORO_EMSCRIPTEN)
 endif()
 
 if(CORO_TESTS)
