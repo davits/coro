@@ -1,0 +1,10 @@
+{
+    "files.insertFinalNewline": true,
+    "editor.renderFinalNewline": "off",
+    "editor.formatOnSave": true,
+    "clangd.arguments": [
+        "--header-insertion=never",
+        "--background-index",
+        "--query-driver=${workspaceFolder}/third_party/emsdk/upstream/emscripten/em*"
+    ],
+}

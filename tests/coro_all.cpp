@@ -4,20 +4,39 @@
 
 #include <gtest/gtest.h>
 
-coro::Task<void> makeVoidTask(int& voidTaskCount) {
-    ++voidTaskCount;
+coro::Task<void> increment(int& counter) {
+    ++counter;
     co_return;
 };
 
-coro::Task<int> makeIntTask(int x) {
+coro::Task<int> returnNumber(int x) {
     co_return x;
 };
 
+struct TestError {
+    TestError()
+        : id {next++} {}
+    int id;
+    static int next;
+};
+
+int TestError::next = 0;
+
+coro::Task<void> failingTask(int& failingTaskCount) {
+    co_await increment(failingTaskCount);
+    throw TestError {};
+}
+
+coro::Task<int> failingIntTask(int& failingTaskCount) {
+    co_await increment(failingTaskCount);
+    throw TestError {};
+}
+
 TEST(CoroAll, MultipleIntTasks) {
     std::vector<coro::Task<int>> tasks;
-    tasks.push_back(makeIntTask(10));
-    tasks.push_back(makeIntTask(20));
-    tasks.push_back(makeIntTask(30));
+    tasks.push_back(returnNumber(10));
+    tasks.push_back(returnNumber(20));
+    tasks.push_back(returnNumber(30));
 
     auto e = coro::SerialExecutor::create();
     auto task = coro::all(std::move(tasks));
@@ -31,27 +50,27 @@ TEST(CoroAll, MixedTasksAndSyncWait) {
     int voidTaskCount = 0;
 
     auto executor = coro::SerialExecutor::create();
-    auto task = coro::all(makeVoidTask(voidTaskCount), makeIntTask(123), makeVoidTask(voidTaskCount));
+    auto task = coro::all(increment(voidTaskCount), returnNumber(123), increment(voidTaskCount));
     auto results = executor->run(task);
 
     EXPECT_EQ(voidTaskCount, 2);
     EXPECT_EQ(std::any_cast<int>(results[1]), 123);
 
     voidTaskCount = 0;
-    auto task1 = coro::all(makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount), makeVoidTask(voidTaskCount));
+    auto task1 = coro::all(increment(voidTaskCount), increment(voidTaskCount), increment(voidTaskCount));
     executor->run(task1);
     EXPECT_EQ(voidTaskCount, 3);
 }
 
 coro::Task<void> executeMixedTasks(std::vector<std::any>& results, int& voidTaskCount) {
-    results = co_await coro::all(makeVoidTask(voidTaskCount), makeIntTask(123), makeVoidTask(voidTaskCount));
+    results = co_await coro::all(increment(voidTaskCount), returnNumber(123), increment(voidTaskCount));
 }
 
 coro::Task<void> executeIntTasks(std::vector<int>& results) {
     std::vector<coro::Task<int>> tasks;
-    tasks.push_back(makeIntTask(10));
-    tasks.push_back(makeIntTask(20));
-    tasks.push_back(makeIntTask(30));
+    tasks.push_back(returnNumber(10));
+    tasks.push_back(returnNumber(20));
+    tasks.push_back(returnNumber(30));
 
     results = co_await coro::all(std::move(tasks));
 }
@@ -64,7 +83,7 @@ TEST(CoroAll, NestedCoroAllCalls) {
     std::vector<coro::Task<void>> tasks;
     tasks.push_back(executeIntTasks(results1));
     tasks.push_back(executeMixedTasks(results2, voidTaskCount));
-    tasks.push_back(makeVoidTask(voidTaskCount));
+    tasks.push_back(increment(voidTaskCount));
 
     auto all_tasks = coro::all(std::move(tasks));
     auto executor = coro::SerialExecutor::create();
@@ -75,4 +94,87 @@ TEST(CoroAll, NestedCoroAllCalls) {
     EXPECT_EQ(results1[1], 20);
     EXPECT_EQ(results1[2], 30);
     EXPECT_EQ(std::any_cast<int>(results2[1]), 123);
+}
+
+TEST(CoroAll, FailingCalls) {
+    {
+        int counter = 0;
+        int failCount = 0;
+        auto task = coro::all(increment(counter), failingTask(failCount), failingTask(failCount), increment(counter));
+        auto executor = coro::SerialExecutor::create();
+        try {
+            executor->run(task);
+            FAIL();
+        } catch (const TestError& err) {
+            EXPECT_EQ(err.id, 0);
+        }
+        EXPECT_EQ(counter, 2);
+        EXPECT_EQ(failCount, 2);
+    }
+    {
+        int counter = 0;
+        int failCount = 0;
+        std::vector<coro::Task<void>> tasks;
+        tasks.push_back(increment(counter));
+        tasks.push_back(failingTask(failCount));
+        tasks.push_back(failingTask(failCount));
+        tasks.push_back(increment(counter));
+        auto task = coro::all(std::move(tasks));
+        auto executor = coro::SerialExecutor::create();
+        try {
+            executor->run(task);
+            FAIL();
+        } catch (const TestError& err) {
+            EXPECT_EQ(err.id, 2);
+        }
+        EXPECT_EQ(counter, 2);
+        EXPECT_EQ(failCount, 2);
+    }
+    {
+        int counter = 0;
+        int failCount = 0;
+        auto task =
+            coro::all(increment(counter), failingIntTask(failCount), failingIntTask(failCount), increment(counter));
+        auto executor = coro::SerialExecutor::create();
+        try {
+            std::vector<std::any> result = executor->run(task);
+            FAIL();
+        } catch (const TestError& err) {
+            EXPECT_EQ(err.id, 4);
+        }
+        EXPECT_EQ(counter, 2);
+        EXPECT_EQ(failCount, 2);
+    }
+    {
+        int number = 0;
+        int failCount = 0;
+        auto task =
+            coro::all(returnNumber(number), failingIntTask(failCount), failingIntTask(failCount), returnNumber(number));
+        auto executor = coro::SerialExecutor::create();
+        try {
+            std::vector<int> result = executor->run(task);
+            FAIL();
+        } catch (const TestError& err) {
+            EXPECT_EQ(err.id, 6);
+        }
+        EXPECT_EQ(failCount, 2);
+    }
+    {
+        int number = 0;
+        int failCount = 0;
+        std::vector<coro::Task<int>> tasks;
+        tasks.push_back(returnNumber(number));
+        tasks.push_back(failingIntTask(failCount));
+        tasks.push_back(failingIntTask(failCount));
+        tasks.push_back(returnNumber(number));
+        auto task = coro::all(std::move(tasks));
+        auto executor = coro::SerialExecutor::create();
+        try {
+            executor->run(task);
+            FAIL();
+        } catch (const TestError& err) {
+            EXPECT_EQ(err.id, 8);
+        }
+        EXPECT_EQ(failCount, 2);
+    }
 }
