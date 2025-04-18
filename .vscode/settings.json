@@ -2,6 +2,7 @@
     "files.insertFinalNewline": true,
     "editor.renderFinalNewline": "off",
     "editor.formatOnSave": true,
+    "cmake.copyCompileCommands": "${workspaceFolder}/compile_commands.json",
     "clangd.arguments": [
         "--header-insertion=never",
         "--background-index",

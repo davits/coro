@@ -1,0 +1,12 @@
+{
+  "name": "coro_tests",
+  "version": "1.0.0",
+  "description": "Tests for the wasm build of the coro library",
+  "main": "setup.js",
+  "scripts": {
+    "test": "jest tests/"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
