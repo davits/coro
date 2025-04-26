@@ -1,4 +1,5 @@
 #include <coro/coro.hpp>
+#include <coro/sleep.hpp>
 #include <coro/sync/mutex.hpp>
 #include <coro/executors/serial_executor.hpp>
 
@@ -12,21 +13,17 @@ coro::Task<void> advance(size_t& counter, coro::Mutex& mutex) {
     co_return;
 }
 
-TEST(Mutex, DataRace) {
+TEST(Mutex, CrossExecutorDataRace) {
     coro::Mutex mutex;
     size_t counter = 0;
-    std::vector<std::thread> threads;
+    std::vector<std::future<void>> futures;
     for (int i = 0; i < 10; ++i) {
         auto task = advance(counter, mutex);
-        threads.push_back(std::thread {[task = std::move(task)]() mutable {
-            using namespace std::chrono_literals;
-            std::this_thread::sleep_for(10ms);
-            auto executor = coro::SerialExecutor::create();
-            executor->run(task);
-        }});
+        auto executor = coro::SerialExecutor::create();
+        futures.push_back(executor->future(std::move(task)));
     }
-    for (auto& thread : threads) {
-        thread.join();
+    for (auto& future : futures) {
+        future.wait();
     }
     EXPECT_EQ(counter, 10000);
 }

@@ -9,3 +9,4 @@
 #include "core/executor.hpp"
 #include "core/stop_token.hpp"
 #include "core/executor.hpp"
+#include "core/executor.inl.hpp"

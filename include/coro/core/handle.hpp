@@ -10,7 +10,7 @@ class PromiseBase;
 /**
  * Wrapper class for coroutine handle providing shared lifetime.
  * Coroutine handle will live as long as there is a at least single CoroHandle object to it.
- * Uses reference counting to keep track of the referring objects. Furthermore stores reference counter
+ * Uses reference counting to keep track of the referring objects. Stores reference counter
  * in the promise, thus every CoroHandle object created from coroutine handle via fromTypedHandle() will share
  * the same reference counting.
  * Upon creation extracts and stores pointer to the promise object via PromiseBase class, so unlike the

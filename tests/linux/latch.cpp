@@ -6,44 +6,55 @@
 #include <gtest/gtest.h>
 
 coro::Task<int> work() {
-    co_await coro::sleep(100);
+    co_await coro::sleep(50);
     co_return 42;
 }
 
-coro::Task<int> defer() {
-    auto task = work();
-    coro::Latch latch {1};
-    auto wrapper = [](coro::Task<int> task, coro::Latch& latch) -> coro::Task<int> {
-        int result = co_await std::move(task);
-        latch.count_down();
-        co_return result;
-    }(std::move(task), latch);
-    std::thread thread {[task = std::move(wrapper)]() mutable {
-        auto executor = coro::SerialExecutor::create();
-        int result = executor->run(task);
-        EXPECT_EQ(result, 42);
-    }};
+coro::Task<int> consumer(coro::Latch& latch) {
     co_await latch;
-    thread.join();
-    co_return 42;
+    co_return co_await work();
 }
 
-TEST(LatchTest, CrossExecutorLatch) {
+coro::Task<int> producer(coro::Latch& latch) {
+    auto result = co_await work();
+    latch.count_down();
+    co_return result;
+}
+
+TEST(Latch, Simple) {
+    coro::Latch latch {1};
     auto executor = coro::SerialExecutor::create();
-    auto task = defer();
-    int result = executor->run(task);
+    auto task1 = consumer(latch);
+    auto future = executor->future(std::move(task1));
+
+    using namespace std::chrono_literals;
+    EXPECT_EQ(future.wait_for(100ms), std::future_status::timeout);
+
+    executor->schedule(producer(latch));
+    auto result = future.get();
     EXPECT_EQ(result, 42);
 }
 
-coro::Task<int> signaled(coro::Latch& latch) {
-    co_await latch;
-    co_return 42;
+TEST(Latch, CrossExecutor) {
+    coro::Latch latch {1};
+    auto executor1 = coro::SerialExecutor::create();
+    auto task1 = consumer(latch);
+    auto future = executor1->future(std::move(task1));
+
+    using namespace std::chrono_literals;
+    EXPECT_EQ(future.wait_for(100ms), std::future_status::timeout);
+
+    auto executor2 = coro::SerialExecutor::create();
+    executor2->schedule(producer(latch));
+
+    auto result = future.get();
+    EXPECT_EQ(result, 42);
 }
 
 TEST(Latch, AlreadySignaled) {
     auto executor = coro::SerialExecutor::create();
     coro::Latch latch {0};
-    auto task = signaled(latch);
-    int result = executor->run(task);
+    auto task = consumer(latch);
+    int result = executor->syncWait(std::move(task));
     EXPECT_EQ(result, 42);
 }

@@ -26,4 +26,15 @@ addToLibrary({
         return Emval.toHandle(promise);
     },
 
+    _coro_lib_val_from_cpp_exception__deps: ['$Emval', '__cxa_rethrow'],
+    _coro_lib_val_from_cpp_exception__sig: 'p',
+    _coro_lib_val_from_cpp_exception: () => {
+        try {
+            // __cxa_rethrow does conversion to JS Error
+            ___cxa_rethrow();
+        } catch (e) {
+            return Emval.toHandle(e);
+        }
+    },
+
 });

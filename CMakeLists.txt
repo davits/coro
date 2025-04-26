@@ -6,7 +6,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(CORO_TESTS "Enable tests." OFF)
-option(CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION "Abort when Task destructor is called for an unfinished/suspended task." OFF)
 
 # Create dummy file to be able to create a STATIC library
 set(DUMMY_FILE ${CMAKE_CURRENT_BINARY_DIR}/dummy.cpp)
@@ -26,10 +25,6 @@ endif()
 if(EMSCRIPTEN)
     target_link_options(coro PUBLIC --js-library ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.js)
     target_sources(coro PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include/coro/emscripten/coro_library.cpp)
-endif()
-
-if(CORO_TESTS OR CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
-    target_compile_definitions(coro PUBLIC CORO_ABORT_ON_SUSPENDED_TASK_DESTRUCTION)
 endif()
 
 if(EMSCRIPTEN)

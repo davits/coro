@@ -6,30 +6,31 @@
 #include <vector>
 #include <gtest/gtest.h>
 
-coro::Task<void> simple0() {
+template <size_t N>
+coro::Task<int> sleepyWork() {
+    int r = co_await sleepyWork<N - 1>();
+    co_return r + 1;
+}
+
+template <>
+coro::Task<int> sleepyWork<0>() {
     co_await coro::sleep(100);
+    co_return 0;
 }
 
-coro::Task<int> simple1() {
-    co_await simple0();
-    co_return 1;
-}
-
-coro::Task<int> simple2() {
-    int x = co_await simple1();
-    co_return x + 1;
-}
-
-coro::Task<double> simple() {
-    auto t1 = simple1();
-    auto t2 = simple2();
-    auto r = co_await coro::all(std::move(t1), std::move(t2));
-    co_return static_cast<double>(r[0]) / static_cast<double>(r[1]);
+coro::Task<int> work() {
+    auto r = co_await coro::all(sleepyWork<1>(), sleepyWork<2>(), sleepyWork<3>(), sleepyWork<4>());
+    co_return r[0] + r[1] + r[2] + r[3];
 }
 
 TEST(Simple, Builtin) {
-    auto e = coro::SerialExecutor::create();
-    auto task = simple();
-    auto d = e->run(task);
-    EXPECT_DOUBLE_EQ(d, 0.5);
+    auto executor = coro::SerialExecutor::create();
+    auto future = executor->future(work());
+    using namespace std::chrono_literals;
+    // make sure sleep is working and the future is not ready right away
+    EXPECT_EQ(future.wait_for(50ms), std::future_status::timeout);
+    // make sure all 4 async sleeps are sleeping in parallel and the overall
+    // execution is complete in roughly 150ms rather then 400ms.
+    EXPECT_EQ(future.wait_for(100ms), std::future_status::ready);
+    EXPECT_EQ(future.get(), 10);
 }

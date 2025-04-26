@@ -8,6 +8,8 @@
 #include "task.fwd.hpp"
 #include "traits.hpp"
 
+#include <mutex>
+
 namespace coro {
 
 class PromiseBase {
@@ -18,6 +20,8 @@ public:
 private:
     friend class CoroHandle;
     std::atomic<size_t> _useCount = 0;
+    mutable std::mutex _mutex;
+    bool _finished = false;
 
 public:
     PromiseBase() = default;
@@ -35,7 +39,7 @@ public:
         template <typename Promise>
         void await_suspend(std::coroutine_handle<Promise> handle) noexcept {
             auto& promise = handle.promise();
-            promise.schedule_continuation();
+            promise.on_finished();
         }
 
         [[noreturn]] void await_resume() noexcept {
@@ -57,10 +61,29 @@ public:
         return await_ready_trait<RawT>::await_transform(context, std::forward<T>(obj));
     }
 
+    void set_continuation(CoroHandle&& cont) {
+        std::scoped_lock lock {_mutex};
+        continuation = std::move(cont);
+        if (_finished) {
+            schedule_continuation();
+        }
+    }
+
+    bool finished() const {
+        std::scoped_lock lock {_mutex};
+        return _finished;
+    }
+
 private:
+    void on_finished() {
+        std::scoped_lock lock {_mutex};
+        _finished = true;
+        schedule_continuation();
+    }
+
     void schedule_continuation() {
         if (continuation) {
-            context.executor->schedule(continuation);
+            continuation.promise().context.executor->schedule(continuation);
         }
     }
 };

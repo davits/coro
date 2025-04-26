@@ -34,3 +34,8 @@ add_executable(lifetime lifetime.cpp)
 target_link_libraries(lifetime coro gtest_main)
 add_test(NAME lifetime COMMAND lifetime)
 set_tests_properties(lifetime PROPERTIES TIMEOUT 2)
+
+add_executable(cross cross.cpp)
+target_link_libraries(cross coro gtest_main)
+add_test(NAME cross COMMAND cross)
+set_tests_properties(cross PROPERTIES TIMEOUT 2)

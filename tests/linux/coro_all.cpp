@@ -39,8 +39,7 @@ TEST(CoroAll, MultipleIntTasks) {
     tasks.push_back(returnNumber(30));
 
     auto e = coro::SerialExecutor::create();
-    auto task = coro::all(std::move(tasks));
-    auto results = e->run(task);
+    auto results = e->syncWait(coro::all(std::move(tasks)));
     EXPECT_EQ(results[0], 10);
     EXPECT_EQ(results[1], 20);
     EXPECT_EQ(results[2], 30);
@@ -51,14 +50,14 @@ TEST(CoroAll, MixedTasksAndSyncWait) {
 
     auto executor = coro::SerialExecutor::create();
     auto task = coro::all(increment(voidTaskCount), returnNumber(123), increment(voidTaskCount));
-    auto results = executor->run(task);
+    auto results = executor->syncWait(std::move(task));
 
     EXPECT_EQ(voidTaskCount, 2);
     EXPECT_EQ(std::any_cast<int>(results[1]), 123);
 
     voidTaskCount = 0;
     auto task1 = coro::all(increment(voidTaskCount), increment(voidTaskCount), increment(voidTaskCount));
-    executor->run(task1);
+    executor->syncWait(std::move(task1));
     EXPECT_EQ(voidTaskCount, 3);
 }
 
@@ -87,7 +86,7 @@ TEST(CoroAll, NestedCoroAllCalls) {
 
     auto all_tasks = coro::all(std::move(tasks));
     auto executor = coro::SerialExecutor::create();
-    executor->run(all_tasks);
+    executor->syncWait(std::move(all_tasks));
 
     EXPECT_EQ(voidTaskCount, 3);
     EXPECT_EQ(results1[0], 10);
@@ -103,7 +102,7 @@ TEST(CoroAll, FailingCalls) {
         auto task = coro::all(increment(counter), failingTask(failCount), failingTask(failCount), increment(counter));
         auto executor = coro::SerialExecutor::create();
         try {
-            executor->run(task);
+            executor->syncWait(std::move(task));
             FAIL();
         } catch (const TestError& err) {
             EXPECT_EQ(err.id, 0);
@@ -122,7 +121,7 @@ TEST(CoroAll, FailingCalls) {
         auto task = coro::all(std::move(tasks));
         auto executor = coro::SerialExecutor::create();
         try {
-            executor->run(task);
+            executor->syncWait(std::move(task));
             FAIL();
         } catch (const TestError& err) {
             EXPECT_EQ(err.id, 2);
@@ -137,7 +136,7 @@ TEST(CoroAll, FailingCalls) {
             coro::all(increment(counter), failingIntTask(failCount), failingIntTask(failCount), increment(counter));
         auto executor = coro::SerialExecutor::create();
         try {
-            std::vector<std::any> result = executor->run(task);
+            std::vector<std::any> result = executor->syncWait(std::move(task));
             FAIL();
         } catch (const TestError& err) {
             EXPECT_EQ(err.id, 4);
@@ -152,7 +151,7 @@ TEST(CoroAll, FailingCalls) {
             coro::all(returnNumber(number), failingIntTask(failCount), failingIntTask(failCount), returnNumber(number));
         auto executor = coro::SerialExecutor::create();
         try {
-            std::vector<int> result = executor->run(task);
+            std::vector<int> result = executor->syncWait(std::move(task));
             FAIL();
         } catch (const TestError& err) {
             EXPECT_EQ(err.id, 6);
@@ -170,7 +169,7 @@ TEST(CoroAll, FailingCalls) {
         auto task = coro::all(std::move(tasks));
         auto executor = coro::SerialExecutor::create();
         try {
-            executor->run(task);
+            executor->syncWait(std::move(task));
             FAIL();
         } catch (const TestError& err) {
             EXPECT_EQ(err.id, 8);

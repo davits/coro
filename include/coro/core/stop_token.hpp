@@ -47,6 +47,10 @@ public:
         return _state && _state->stop_requested();
     }
 
+    bool operator==(const StopToken& other) const {
+        return _state == other._state;
+    }
+
 private:
     friend class StopSource;
     StopToken(StopState::Ptr state)

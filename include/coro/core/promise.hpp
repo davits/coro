@@ -30,12 +30,13 @@ public:
         _storage.emplace_value(std::move(r));
     }
 
-    const expected<R>& storage() const {
-        return _storage;
+public:
+    decltype(auto) value() const& {
+        return _storage.value();
     }
 
-    expected<R>& storage() {
-        return _storage;
+    decltype(auto) value() && {
+        return std::move(_storage).value();
     }
 
 private:
@@ -59,12 +60,9 @@ public:
         _storage.emplace_value();
     }
 
-    const expected<void>& storage() const {
-        return _storage;
-    }
-
-    expected<void>& storage() {
-        return _storage;
+public:
+    void value() {
+        return _storage.value();
     }
 
 private:

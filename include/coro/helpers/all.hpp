@@ -46,14 +46,8 @@ Task<void> all(Task<Args>... tasks) {
     Latch latch {sizeof...(tasks)};
     auto executor = co_await currentExecutor;
 
-    std::vector<Task<void>> runningTasks;
-    runningTasks.reserve(sizeof...(tasks));
     std::exception_ptr eptr = nullptr;
-
-    (runningTasks.push_back(detail::runAndNotify(std::move(tasks), latch, eptr)), ...);
-    for (auto& task : runningTasks) {
-        task.scheduleOn(executor);
-    }
+    (executor->schedule(detail::runAndNotify(std::move(tasks), latch, eptr)), ...);
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -68,17 +62,11 @@ Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
     Latch latch {count};
     auto executor = co_await currentExecutor;
 
-    std::vector<Task<void>> wrapperTasks;
-    wrapperTasks.reserve(count);
     std::exception_ptr eptr = nullptr;
-
-    wrapperTasks.push_back(detail::runAndNotify(std::move(first), latch, eptr, results, 0));
+    executor->schedule(detail::runAndNotify(std::move(first), latch, eptr, results, 0));
     size_t idx = 1;
-    (wrapperTasks.push_back(detail::runAndNotify(std::move(rest), latch, eptr, results, idx++)), ...);
+    (executor->schedule(detail::runAndNotify(std::move(rest), latch, eptr, results, idx++)), ...);
 
-    for (auto& task : wrapperTasks) {
-        task.scheduleOn(executor);
-    }
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -92,16 +80,10 @@ Task<std::vector<std::any>> all(Task<Args>... tasks) {
     Latch latch {sizeof...(tasks)};
     auto executor = co_await currentExecutor;
 
-    std::vector<Task<void>> runningTasks;
-    runningTasks.reserve(sizeof...(tasks));
     std::exception_ptr eptr = nullptr;
-
     size_t idx = 0;
-    (runningTasks.push_back(detail::runAndNotify(std::move(tasks), latch, eptr, results, idx++)), ...);
+    (executor->schedule(detail::runAndNotify(std::move(tasks), latch, eptr, results, idx++)), ...);
 
-    for (auto& task : runningTasks) {
-        task.scheduleOn(executor);
-    }
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -119,18 +101,12 @@ Task<std::vector<T>> all(std::vector<Task<T>> tasks) {
     Latch latch {static_cast<uint32_t>(tasks.size())};
     auto executor = co_await currentExecutor;
 
-    std::vector<Task<void>> runningTasks;
-    runningTasks.reserve(tasks.size());
     std::exception_ptr eptr = nullptr;
-
     size_t idx = 0;
     for (auto& task : tasks) {
-        runningTasks.push_back(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
+        executor->schedule(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
     }
 
-    for (auto& task : runningTasks) {
-        task.scheduleOn(executor);
-    }
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -142,22 +118,14 @@ inline Task<void> all(std::vector<Task<void>> tasks) {
     if (tasks.empty()) {
         co_return;
     }
-
+    auto executor = co_await currentExecutor;
     Latch latch {static_cast<std::ptrdiff_t>(tasks.size())};
-
-    std::vector<Task<void>> helperTasks;
-    helperTasks.reserve(tasks.size());
     std::exception_ptr eptr = nullptr;
-
     for (auto& task : tasks) {
-        helperTasks.push_back(detail::runAndNotify(std::move(task), latch, eptr));
+        executor->schedule(detail::runAndNotify(std::move(task), latch, eptr));
     }
     tasks.clear();
 
-    auto executor = co_await currentExecutor;
-    for (auto& task : helperTasks) {
-        task.scheduleOn(executor);
-    }
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);

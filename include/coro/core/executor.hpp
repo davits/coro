@@ -1,8 +1,8 @@
 #pragma once
 
 #include "handle.hpp"
+#include "task.fwd.hpp"
 
-#include <coroutine>
 #include <memory>
 
 namespace coro {
@@ -21,8 +21,12 @@ public:
     virtual void schedule(CoroHandle coro) = 0;
 
     /// Will be called to indicate that given coroutine is suspended and waiting
-    /// for external event and will be scheduled in the future.
+    /// for external event and will be scheduled in the future, by external force.
     virtual void external(CoroHandle coro) = 0;
+
+public:
+    template <typename R>
+    Task<R> schedule(Task<R>&& task);
 };
 
 } // namespace coro

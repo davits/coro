@@ -55,7 +55,7 @@ inline CoroHandle& CoroHandle::operator=(CoroHandle&& other) {
 }
 
 inline void CoroHandle::reset() {
-    if (_promise) {
+    if (_handle) {
         if (--(_promise->_useCount) == 0) {
             _handle.destroy();
         }

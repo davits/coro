@@ -67,11 +67,18 @@ private:
     bool _locked = false;
 };
 
-class ScopedLock : public detail::OnlyMovable {
+class ScopedLock {
 private:
     friend detail::MutexAwaitable;
     ScopedLock(Mutex* mutex)
         : _mutex(mutex) {}
+
+public:
+    // Move only
+    ScopedLock(const ScopedLock&) = delete;
+    ScopedLock& operator=(const ScopedLock&) = delete;
+    ScopedLock(ScopedLock&&) = default;
+    ScopedLock& operator=(ScopedLock&&) = default;
 
 public:
     ~ScopedLock() {

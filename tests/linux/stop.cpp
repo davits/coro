@@ -38,28 +38,24 @@ TEST(Stop, Builtin) {
     coro::StopSource ss1;
     coro::StopSource ss2;
     coro::StopSource ss3;
-    auto t1 = std::thread {[&]() {
-        auto task = simple();
-        task.setStopToken(ss1.get_token());
-        auto e1 = coro::SerialExecutor::create();
-        EXPECT_THROW(e1->run(task), Cancelled);
-    }};
-    auto t2 = std::thread {[&]() {
-        auto task = simple();
-        task.setStopToken(ss2.get_token());
-        auto e2 = coro::SerialExecutor::create();
-        EXPECT_THROW(e2->run(task), Cancelled);
-    }};
-    auto t3 = std::thread {[&]() {
-        auto task = simple();
-        task.setStopToken(ss3.get_token());
-        auto e3 = coro::SerialExecutor::create();
-        auto d = e3->run(task);
-        EXPECT_DOUBLE_EQ(d, 0.5);
-    }};
+
+    auto executor = coro::SerialExecutor::create();
+    auto task1 = simple();
+    task1.setStopToken(ss1.get_token());
+    auto future1 = executor->future(std::move(task1));
+
+    auto task2 = simple();
+    task2.setStopToken(ss2.get_token());
+    auto future2 = executor->future(std::move(task2));
+
+    auto task3 = simple();
+    task3.setStopToken(ss3.get_token());
+    auto future3 = executor->future(std::move(task3));
+
     ss1.request_stop();
     ss2.request_stop();
-    t1.join();
-    t2.join();
-    t3.join();
+
+    EXPECT_THROW(future1.get(), Cancelled);
+    EXPECT_THROW(future2.get(), Cancelled);
+    EXPECT_DOUBLE_EQ(future3.get(), 0.5);
 }
