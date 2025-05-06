@@ -47,7 +47,7 @@ Task<void> all(Task<Args>... tasks) {
     auto executor = co_await currentExecutor;
 
     std::exception_ptr eptr = nullptr;
-    (executor->schedule(detail::runAndNotify(std::move(tasks), latch, eptr)), ...);
+    (executor->next(detail::runAndNotify(std::move(tasks), latch, eptr)), ...);
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -63,9 +63,9 @@ Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
     auto executor = co_await currentExecutor;
 
     std::exception_ptr eptr = nullptr;
-    executor->schedule(detail::runAndNotify(std::move(first), latch, eptr, results, 0));
+    executor->next(detail::runAndNotify(std::move(first), latch, eptr, results, 0));
     size_t idx = 1;
-    (executor->schedule(detail::runAndNotify(std::move(rest), latch, eptr, results, idx++)), ...);
+    (executor->next(detail::runAndNotify(std::move(rest), latch, eptr, results, idx++)), ...);
 
     co_await latch;
     if (eptr) {
@@ -82,7 +82,7 @@ Task<std::vector<std::any>> all(Task<Args>... tasks) {
 
     std::exception_ptr eptr = nullptr;
     size_t idx = 0;
-    (executor->schedule(detail::runAndNotify(std::move(tasks), latch, eptr, results, idx++)), ...);
+    (executor->next(detail::runAndNotify(std::move(tasks), latch, eptr, results, idx++)), ...);
 
     co_await latch;
     if (eptr) {
@@ -104,7 +104,7 @@ Task<std::vector<T>> all(std::vector<Task<T>> tasks) {
     std::exception_ptr eptr = nullptr;
     size_t idx = 0;
     for (auto& task : tasks) {
-        executor->schedule(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
+        executor->next(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
     }
 
     co_await latch;
@@ -122,7 +122,7 @@ inline Task<void> all(std::vector<Task<void>> tasks) {
     Latch latch {static_cast<std::ptrdiff_t>(tasks.size())};
     std::exception_ptr eptr = nullptr;
     for (auto& task : tasks) {
-        executor->schedule(detail::runAndNotify(std::move(task), latch, eptr));
+        executor->next(detail::runAndNotify(std::move(task), latch, eptr));
     }
     tasks.clear();
 

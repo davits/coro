@@ -51,7 +51,7 @@ struct Awaitable {
             // if task is not scheduled on any executor,
             // copy awaiter task context and schedule on the same executor
             taskPromise.context = awaitingPromise.context;
-            awaitingPromise.context.executor->schedule(_task.handle());
+            awaitingPromise.context.executor->next(_task.handle());
         } else if (taskPromise.context.executor != awaitingPromise.context.executor) {
             // mark awaiter as waiting for external execution
             awaitingPromise.context.executor->external(awaitingHandle);

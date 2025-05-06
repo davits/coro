@@ -69,6 +69,10 @@ protected:
         _state->schedule(std::move(coro));
     }
 
+    void next(CoroHandle coro) override {
+        _state->next(std::move(coro));
+    }
+
     void external(CoroHandle coro) override {
         _state->external(std::move(coro));
     }
@@ -76,7 +80,7 @@ protected:
 private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
-        detail::Queue<CoroHandle> tasks;
+        detail::Deque<CoroHandle> tasks;
         std::set<CoroHandle> externals;
         std::condition_variable cv;
         std::mutex mutex;
@@ -86,7 +90,16 @@ private:
             {
                 std::scoped_lock lock {mutex};
                 externals.erase(coro);
-                tasks.push(std::move(coro));
+                tasks.pushFront(std::move(coro));
+            }
+            cv.notify_one();
+        }
+
+        void next(CoroHandle coro) {
+            {
+                std::scoped_lock lock {mutex};
+                externals.erase(coro);
+                tasks.pushBack(std::move(coro));
             }
             cv.notify_one();
         }
@@ -119,7 +132,7 @@ private:
                 }
                 break;
             }
-            CoroHandle task = state->tasks.pop().value();
+            CoroHandle task = state->tasks.popBack().value();
             // release lock and give a chance to schedule while task is being executed
             lock.unlock();
             task.resume();

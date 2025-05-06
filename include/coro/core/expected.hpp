@@ -73,8 +73,8 @@ public:
     }
 
 private:
-    V _value = V {};
     std::exception_ptr _error = nullptr;
+    V _value = V {};
     state _state = state::uninitialized;
 };
 

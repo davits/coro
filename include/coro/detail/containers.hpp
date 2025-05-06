@@ -8,6 +8,41 @@
 namespace coro::detail {
 
 template <typename T>
+class Deque {
+public:
+    Deque() = default;
+
+    void pushFront(T data) {
+        _deque.push_front(std::move(data));
+    }
+
+    std::optional<T> popFront() {
+        if (_deque.empty()) return std::nullopt;
+        std::optional<T> result {std::move(_deque.front())};
+        _deque.pop_front();
+        return result;
+    }
+
+    void pushBack(T data) {
+        _deque.push_back(std::move(data));
+    }
+
+    std::optional<T> popBack() {
+        if (_deque.empty()) return std::nullopt;
+        std::optional<T> result {std::move(_deque.back())};
+        _deque.pop_back();
+        return result;
+    }
+
+    bool empty() const {
+        return _deque.empty();
+    }
+
+private:
+    std::deque<T> _deque;
+};
+
+template <typename T>
 class Queue {
 public:
     Queue() = default;

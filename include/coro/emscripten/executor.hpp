@@ -70,6 +70,10 @@ protected:
         _state->schedule(std::move(handle));
     }
 
+    void next(CoroHandle handle) override {
+        _state->next(std::move(handle));
+    }
+
     void external(CoroHandle handle) override {
         _state->external(std::move(handle));
     }
@@ -77,7 +81,7 @@ protected:
 private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
-        coro::detail::Stack<CoroHandle> tasks;
+        coro::detail::Deque<CoroHandle> tasks;
         std::set<CoroHandle> externals;
         detail::JSPromise coroScheduled = detail::JSPromise::null();
         emscripten::val runner;
@@ -86,7 +90,15 @@ private:
 
         void schedule(CoroHandle&& handle) {
             externals.erase(handle);
-            tasks.push(std::move(handle));
+            tasks.pushFront(std::move(handle));
+            if (coroScheduled) {
+                coroScheduled.resolve(emscripten::val {});
+            }
+        }
+
+        void next(CoroHandle&& handle) {
+            externals.erase(handle);
+            tasks.pushBack(std::move(handle));
             if (coroScheduled) {
                 coroScheduled.resolve(emscripten::val {});
             }
@@ -107,7 +119,7 @@ private:
     static emscripten::val runScheduled(RunState::Ref state) {
         auto start = now();
         while (true) {
-            auto next = state->tasks.pop().value_or(nullptr);
+            auto next = state->tasks.popBack().value_or(nullptr);
             if (next) {
                 next.resume();
                 // reset to force the last task keeping executor alive to be destructed and hence

@@ -83,7 +83,12 @@ private:
 
     void schedule_continuation() {
         if (continuation) {
-            continuation.promise().context.executor->schedule(continuation);
+            auto contExecutor = continuation.promise().context.executor;
+            if (contExecutor == context.executor) {
+                contExecutor->next(continuation);
+            } else {
+                contExecutor->schedule(continuation);
+            }
         }
     }
 };
