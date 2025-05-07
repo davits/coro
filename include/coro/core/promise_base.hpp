@@ -14,14 +14,37 @@ namespace coro {
 
 class PromiseBase {
 public:
+    enum class ExecutionState {
+        Normal,
+        Cancelling,
+        Finished,
+    };
+
+    enum class ValueState {
+        Uninitialized,
+        Value,
+        Exception,
+    };
+
+public:
     TaskContext context;
     CoroHandle continuation = nullptr;
+    ExecutionState executionState = ExecutionState::Normal;
 
 private:
     friend class CoroHandle;
     std::atomic<size_t> _useCount = 0;
     mutable std::mutex _mutex;
-    bool _finished = false;
+
+protected:
+    std::exception_ptr _exception;
+    ValueState _valueState;
+
+public:
+    void emplace_exception(std::exception_ptr ptr) {
+        _exception = ptr;
+        _valueState = ValueState::Exception;
+    }
 
 public:
     PromiseBase() = default;
@@ -64,20 +87,20 @@ public:
     void set_continuation(CoroHandle&& cont) {
         std::scoped_lock lock {_mutex};
         continuation = std::move(cont);
-        if (_finished) {
+        if (executionState == ExecutionState::Finished) {
             schedule_continuation();
         }
     }
 
     bool finished() const {
         std::scoped_lock lock {_mutex};
-        return _finished;
+        return executionState == ExecutionState::Finished;
     }
 
 private:
     void on_finished() {
         std::scoped_lock lock {_mutex};
-        _finished = true;
+        executionState = ExecutionState::Finished;
         schedule_continuation();
     }
 
@@ -85,9 +108,9 @@ private:
         if (continuation) {
             auto contExecutor = continuation.promise().context.executor;
             if (contExecutor == context.executor) {
-                contExecutor->next(continuation);
+                contExecutor->next(std::move(continuation));
             } else {
-                contExecutor->schedule(continuation);
+                contExecutor->schedule(std::move(continuation));
             }
         }
     }

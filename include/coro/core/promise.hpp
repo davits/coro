@@ -2,7 +2,6 @@
 
 #include "task.fwd.hpp"
 #include "awaitable.hpp"
-#include "expected.hpp"
 #include "executor.hpp"
 #include "promise_base.hpp"
 
@@ -12,6 +11,10 @@
 #include <exception>
 
 namespace coro {
+
+class UninitializedValue : public std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
 
 template <typename R>
 class Promise : public PromiseBase {
@@ -23,24 +26,43 @@ public:
     Task<R> get_return_object();
 
     void unhandled_exception() {
-        _storage.emplace_error(std::current_exception());
+        emplace_exception(std::current_exception());
     }
 
     void return_value(R r) {
-        _storage.emplace_value(std::move(r));
+        emplace_value(std::move(r));
     }
 
 public:
-    decltype(auto) value() const& {
-        return _storage.value();
+    void emplace_value(R&& value) {
+        _value = std::move(value);
+        _valueState = PromiseBase::ValueState::Value;
     }
 
-    decltype(auto) value() && {
-        return std::move(_storage).value();
+    const R& value() const& {
+        switch (_valueState) {
+        case PromiseBase::ValueState::Uninitialized:
+            throw UninitializedValue("Value is not initialized.");
+        case PromiseBase::ValueState::Exception:
+            std::rethrow_exception(_exception);
+        case PromiseBase::ValueState::Value:
+            return _value;
+        }
+    }
+
+    R&& value() && {
+        switch (_valueState) {
+        case PromiseBase::ValueState::Uninitialized:
+            throw UninitializedValue("Value is not initialized.");
+        case PromiseBase::ValueState::Exception:
+            std::rethrow_exception(_exception);
+        case PromiseBase::ValueState::Value:
+            return std::move(_value);
+        }
     }
 
 private:
-    expected<R> _storage;
+    R _value;
 };
 
 template <>
@@ -53,20 +75,28 @@ public:
     Task<void> get_return_object();
 
     void unhandled_exception() {
-        _storage.emplace_error(std::current_exception());
+        emplace_exception(std::current_exception());
     }
 
     void return_void() {
-        _storage.emplace_value();
+        emplace_value();
     }
 
 public:
-    void value() {
-        return _storage.value();
+    void emplace_value() {
+        _valueState = PromiseBase::ValueState::Value;
     }
 
-private:
-    expected<void> _storage;
+    void value() {
+        switch (_valueState) {
+        case PromiseBase::ValueState::Uninitialized:
+            throw UninitializedValue("Value is not initialized.");
+        case PromiseBase::ValueState::Exception:
+            std::rethrow_exception(_exception);
+        case PromiseBase::ValueState::Value:
+            return;
+        }
+    }
 };
 
 } // namespace coro
