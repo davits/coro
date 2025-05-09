@@ -6,7 +6,7 @@
 #include <condition_variable>
 #include <future>
 #include <mutex>
-#include <set>
+#include <map>
 
 namespace coro {
 
@@ -81,32 +81,40 @@ private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
         detail::Deque<CoroHandle> tasks;
-        std::set<CoroHandle> externals;
+        std::map<CoroHandle, StopCallback::Ref> externals;
         std::condition_variable cv;
         std::mutex mutex;
         std::atomic<bool> finished = false;
 
-        void schedule(CoroHandle coro) {
+        void schedule(CoroHandle&& handle) {
             {
                 std::scoped_lock lock {mutex};
-                externals.erase(coro);
-                tasks.pushFront(std::move(coro));
+                externals.erase(handle);
+                if (handle.promise().finished()) [[unlikely]] {
+                    return;
+                }
+                tasks.pushFront(std::move(handle));
             }
             cv.notify_one();
         }
 
-        void next(CoroHandle coro) {
+        void next(CoroHandle&& handle) {
             {
                 std::scoped_lock lock {mutex};
-                externals.erase(coro);
-                tasks.pushBack(std::move(coro));
+                externals.erase(handle);
+                if (handle.promise().finished()) [[unlikely]] {
+                    return;
+                }
+                tasks.pushBack(std::move(handle));
             }
             cv.notify_one();
         }
 
-        void external(CoroHandle coro) {
+        void external(CoroHandle&& handle) {
             std::scoped_lock lock {mutex};
-            externals.insert(std::move(coro));
+            auto callback = handle.promise().context.stopToken.addStopCallback(
+                [handle]() mutable { handle.promise().stop_if_necessary(); });
+            externals.emplace(std::move(handle), std::move(callback));
         }
 
         void executorDestroyed() {
@@ -135,6 +143,9 @@ private:
             CoroHandle task = state->tasks.popBack().value();
             // release lock and give a chance to schedule while task is being executed
             lock.unlock();
+            if (task.promise().stop_if_necessary()) [[unlikely]] {
+                continue;
+            }
             task.resume();
         }
     }

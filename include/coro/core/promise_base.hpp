@@ -3,7 +3,7 @@
 #include "awaitable.hpp"
 #include "executor.hpp"
 #include "handle.hpp"
-#include "stop_token.hpp"
+#include "stop.hpp"
 #include "task_context.hpp"
 #include "task.fwd.hpp"
 #include "traits.hpp"
@@ -26,19 +26,21 @@ public:
         Exception,
     };
 
-public:
-    TaskContext context;
-    CoroHandle continuation = nullptr;
-    ExecutionState executionState = ExecutionState::Normal;
-
 private:
     friend class CoroHandle;
     std::atomic<size_t> _useCount = 0;
-    mutable std::mutex _mutex;
+
+public:
+    TaskContext context;
+    CoroHandle continuation = nullptr;
 
 protected:
     std::exception_ptr _exception;
     ValueState _valueState;
+
+private:
+    mutable std::mutex _mutex;
+    ExecutionState _executionState = ExecutionState::Normal;
 
 public:
     void emplace_exception(std::exception_ptr ptr) {
@@ -75,6 +77,10 @@ public:
         return {};
     }
 
+    void unhandled_exception() {
+        emplace_exception(std::current_exception());
+    }
+
     template <typename U>
     Awaitable<Task<U>> await_transform(Task<U>&& task);
 
@@ -84,28 +90,45 @@ public:
         return await_ready_trait<RawT>::await_transform(context, std::forward<T>(obj));
     }
 
+public:
     void set_continuation(CoroHandle&& cont) {
         std::scoped_lock lock {_mutex};
         continuation = std::move(cont);
-        if (executionState == ExecutionState::Finished) {
+        if (_executionState == ExecutionState::Finished) {
             schedule_continuation();
         }
     }
 
     bool finished() const {
         std::scoped_lock lock {_mutex};
-        return executionState == ExecutionState::Finished;
+        return _executionState == ExecutionState::Finished;
+    }
+
+    bool stop_if_necessary() {
+        std::scoped_lock lock {_mutex};
+        if (context.stopToken.stopRequested() && _executionState != ExecutionState::Cancelling && continuation)
+            [[unlikely]] {
+            emplace_exception(context.stopToken.exception());
+            _executionState = ExecutionState::Cancelling;
+            schedule_continuation();
+            _executionState = ExecutionState::Finished;
+            return true;
+        }
+        return false;
     }
 
 private:
     void on_finished() {
         std::scoped_lock lock {_mutex};
-        executionState = ExecutionState::Finished;
         schedule_continuation();
+        _executionState = ExecutionState::Finished;
     }
 
     void schedule_continuation() {
         if (continuation) {
+            if (_executionState == ExecutionState::Cancelling) {
+                continuation.promise()._executionState = ExecutionState::Cancelling;
+            }
             auto contExecutor = continuation.promise().context.executor;
             if (contExecutor == context.executor) {
                 contExecutor->next(std::move(continuation));

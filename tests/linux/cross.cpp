@@ -47,7 +47,7 @@ coro::Task<int> contextChecker(coro::StopToken expectedToken, coro::UserData::Re
     auto executor = co_await coro::currentExecutor;
 
     coro::StopSource stopSource;
-    auto newToken = stopSource.get_token();
+    auto newToken = stopSource.token();
     auto newData = std::make_shared<CustomData>();
     auto task = innerContextChecker(newToken, newData);
     task.setStopToken(newToken);
@@ -60,7 +60,7 @@ TEST(Cross, SplitContext) {
     auto e = coro::SerialExecutor::create();
 
     coro::StopSource stopSource;
-    auto newToken = stopSource.get_token();
+    auto newToken = stopSource.token();
     auto newData = std::make_shared<CustomData>();
     auto task = contextChecker(newToken, newData);
     task.setStopToken(newToken);

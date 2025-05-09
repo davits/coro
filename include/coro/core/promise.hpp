@@ -25,10 +25,6 @@ public:
 public:
     Task<R> get_return_object();
 
-    void unhandled_exception() {
-        emplace_exception(std::current_exception());
-    }
-
     void return_value(R r) {
         emplace_value(std::move(r));
     }
@@ -73,10 +69,6 @@ public:
 
 public:
     Task<void> get_return_object();
-
-    void unhandled_exception() {
-        emplace_exception(std::current_exception());
-    }
 
     void return_void() {
         emplace_value();

@@ -86,7 +86,7 @@ inline void CoroHandle::resume() {
     _handle.resume();
 }
 
-inline CoroHandle::operator bool() {
+inline CoroHandle::operator bool() const {
     return static_cast<bool>(_handle);
 }
 

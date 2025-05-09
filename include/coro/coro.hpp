@@ -7,6 +7,6 @@
 #include "core/promise.inl.hpp"
 #include "core/handle.inl.hpp"
 #include "core/executor.hpp"
-#include "core/stop_token.hpp"
+#include "core/stop.hpp"
 #include "core/executor.hpp"
 #include "core/executor.inl.hpp"

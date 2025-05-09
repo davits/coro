@@ -2,7 +2,8 @@
 
 #include "awaitable.hpp"
 #include "executor.hpp"
-#include "stop_token.hpp"
+#include "stop.hpp"
+#include "traits.hpp"
 
 namespace coro {
 

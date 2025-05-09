@@ -7,7 +7,7 @@
 #include "../core/task.hpp"
 #include "../detail/containers.hpp"
 
-#include <set>
+#include <map>
 
 #include <emscripten/bind.h>
 #include <emscripten/val.h>
@@ -82,7 +82,7 @@ private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
         coro::detail::Deque<CoroHandle> tasks;
-        std::set<CoroHandle> externals;
+        std::map<CoroHandle, StopCallback::Ref> externals;
         detail::JSPromise coroScheduled = detail::JSPromise::null();
         emscripten::val runner;
         uint32_t maxBlockingTime = 1000 / 30;
@@ -90,22 +90,30 @@ private:
 
         void schedule(CoroHandle&& handle) {
             externals.erase(handle);
+            if (handle.promise().finished()) [[unlikely]] {
+                return;
+            }
             tasks.pushFront(std::move(handle));
-            if (coroScheduled) {
+            if (coroScheduled) [[unlikely]] {
                 coroScheduled.resolve(emscripten::val {});
             }
         }
 
         void next(CoroHandle&& handle) {
             externals.erase(handle);
+            if (handle.promise().finished()) [[unlikely]] {
+                return;
+            }
             tasks.pushBack(std::move(handle));
-            if (coroScheduled) {
+            if (coroScheduled) [[unlikely]] {
                 coroScheduled.resolve(emscripten::val {});
             }
         }
 
         void external(CoroHandle&& handle) {
-            externals.insert(std::move(handle));
+            auto callback = handle.promise().context.stopToken.addStopCallback(
+                [handle]() mutable { handle.promise().stop_if_necessary(); });
+            externals.emplace(std::move(handle), std::move(callback));
         }
 
         void executorDestroyed() {
@@ -120,21 +128,28 @@ private:
         auto start = now();
         while (true) {
             auto next = state->tasks.popBack().value_or(nullptr);
-            if (next) {
-                next.resume();
-                // reset to force the last task keeping executor alive to be destructed and hence
-                // cause destruction of the executor which in turn will set finished flag to true.
-                next.reset();
-                if (state->finished) break;
-                auto passed = passedTime(start);
-                if (passed > state->maxBlockingTime) {
-                    co_await sleep(0); // defer the rest to the next JS event loop cycle
-                    start = now();
-                }
-            } else {
+            if (!next) {
                 state->coroScheduled = detail::JSPromise::create();
                 co_await state->coroScheduled.promise(); // wait untill something is scheduled
-                if (state->finished) break;
+                if (state->finished) [[unlikely]] {
+                    break;
+                }
+                continue;
+            }
+            if (next.promise().stop_if_necessary()) [[unlikely]] {
+                continue;
+            }
+            next.resume();
+            // reset to force the last task keeping executor alive to be destructed and hence
+            // cause destruction of the executor which in turn will set finished flag to true.
+            next.reset();
+            if (state->finished) [[unlikely]] {
+                break;
+            }
+            auto passed = passedTime(start);
+            if (passed > state->maxBlockingTime) {
+                co_await sleep(0); // defer the rest to the next JS event loop cycle
+                start = now();
             }
         }
         co_return emscripten::val::undefined();

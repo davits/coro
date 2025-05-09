@@ -38,6 +38,14 @@ public:
         return _deque.empty();
     }
 
+    decltype(auto) begin() {
+        return _deque.begin();
+    }
+
+    decltype(auto) end() {
+        return _deque.end();
+    }
+
 private:
     std::deque<T> _deque;
 };

@@ -22,8 +22,19 @@ addToLibrary({
     _coro_lib_sleep__deps: ['$Emval'],
     _coro_lib_sleep__sig: 'pi',
     _coro_lib_sleep: (time) => {
-        const promise = new Promise(resolve => setTimeout(resolve, time));
-        return Emval.toHandle(promise);
+        let obj = {};
+        obj.promise = new Promise((resolve, reject) => {
+            const id = setTimeout(() => {
+                obj.cancel = () => {};
+                resolve();
+            }, time);
+            obj.cancel = () => {
+                clearTimeout(id);
+                obj.cancel = () => {};
+                reject();
+            };
+        });
+        return Emval.toHandle(obj);
     },
 
     _coro_lib_val_from_cpp_exception__deps: ['$Emval', '__cxa_rethrow'],

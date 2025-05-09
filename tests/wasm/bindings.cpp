@@ -13,7 +13,7 @@ coro::Task<int> sleepy(bool thr) {
 
 template <>
 coro::Task<int> sleepy<0>(bool thr) {
-    co_await coro::sleep(100);
+    co_await coro::sleep(200);
     if (thr) {
         throw std::runtime_error {"test error"};
     }
@@ -51,6 +51,33 @@ public:
 int32_t TestExecutor::executorCount = 0;
 std::weak_ptr<coro::SerialWebExecutor::RunState> TestExecutor::weakRunState;
 
+struct CancellableTask {
+    emscripten::val taskPromise;
+    coro::StopSource stop;
+
+    CancellableTask(emscripten::val p, coro::StopSource s)
+        : taskPromise(std::move(p))
+        , stop(std::move(s)) {}
+
+    void cancel() {
+        stop.requestStop();
+    }
+
+    emscripten::val promise() const {
+        return taskPromise;
+    }
+};
+
+std::shared_ptr<CancellableTask> launchCancellableTask() {
+    auto executor = coro::SerialWebExecutor::create();
+    auto task = sleepy<5>(false);
+    coro::StopSource stop;
+    task.setStopToken(stop.token());
+    auto promise = executor->promise(std::move(task));
+
+    return std::make_shared<CancellableTask>(std::move(promise), std::move(stop));
+}
+
 EMSCRIPTEN_BINDINGS(Test) {
     emscripten::function("sleepyTask", +[] { return coro::taskPromise(sleepy<5>(false)); });
     emscripten::function("failingTask", +[]() { return coro::taskPromise(sleepy<5>(true)); });
@@ -61,4 +88,11 @@ EMSCRIPTEN_BINDINGS(Test) {
         });
     emscripten::function("executorCount", +[]() { return TestExecutor::executorCount; });
     emscripten::function("runStateDestroyed", +[]() { return TestExecutor::weakRunState.lock() == nullptr; });
+
+    emscripten::class_<CancellableTask>("CancellableTask")
+        .smart_ptr<std::shared_ptr<CancellableTask>>("CancellableTask")
+        .function("cancel", &CancellableTask::cancel)
+        .function("promise", &CancellableTask::promise);
+
+    emscripten::function("launchCancellableTask", &launchCancellableTask);
 }

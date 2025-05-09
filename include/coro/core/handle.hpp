@@ -72,7 +72,7 @@ public:
 
 public:
     /// Returns whether stored handle is non null.
-    explicit operator bool();
+    explicit operator bool() const;
 
     bool operator==(const CoroHandle& other) const noexcept;
 
