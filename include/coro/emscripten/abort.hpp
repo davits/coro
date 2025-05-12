@@ -92,7 +92,8 @@ inline AbortTokenAwaitable abortSignal(int32_t timeout = -1) {
 
 template <>
 struct await_ready_trait<AbortTokenAwaitable> {
-    static decltype(auto) await_transform(TaskContext& context, const AbortTokenAwaitable& awaitable) {
+    static decltype(auto)
+    await_transform(const ExecutorRef&, TaskContext& context, const AbortTokenAwaitable& awaitable) {
         return ReadyAwaitable {AbortToken {context.stopToken, awaitable.timeout}};
     }
 };

@@ -16,9 +16,8 @@ struct UserData {
 inline UserData::~UserData() {}
 
 struct TaskContext {
-    Executor::Ref executor = nullptr;
     StopToken stopToken = nullptr;
-    UserData::Ref userData = nullptr;
+    UserData::Ref userData;
 };
 
 /// Helper to easily access to the current executor within the coroutine.
@@ -28,8 +27,8 @@ inline ExecutorAwaitable currentExecutor;
 
 template <>
 struct await_ready_trait<ExecutorAwaitable> {
-    static decltype(auto) await_transform(const TaskContext& context, ExecutorAwaitable) {
-        return ReadyAwaitable<const Executor::Ref&> {context.executor};
+    static decltype(auto) await_transform(const ExecutorRef& executor, const TaskContext&, ExecutorAwaitable) {
+        return ReadyAwaitable<const Executor::Ref&> {executor};
     }
 };
 
@@ -40,7 +39,7 @@ inline StopTokenAwaitable currentStopToken;
 
 template <>
 struct await_ready_trait<StopTokenAwaitable> {
-    static decltype(auto) await_transform(const TaskContext& context, StopTokenAwaitable) {
+    static decltype(auto) await_transform(const ExecutorRef&, const TaskContext& context, StopTokenAwaitable) {
         return ReadyAwaitable<const StopToken&> {context.stopToken};
     }
 };
@@ -52,7 +51,7 @@ inline UserDataAwaitable currentUserData;
 
 template <>
 struct await_ready_trait<UserDataAwaitable> {
-    static decltype(auto) await_transform(const TaskContext& context, UserDataAwaitable) {
+    static decltype(auto) await_transform(const ExecutorRef&, const TaskContext& context, UserDataAwaitable) {
         return ReadyAwaitable<const UserData::Ref&> {context.userData};
     }
 };

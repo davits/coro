@@ -84,8 +84,8 @@ private:
 
 template <>
 struct await_ready_trait<emscripten::val> {
-    static ValAwaitable await_transform(const TaskContext& context, emscripten::val awaitable) {
-        return ValAwaitable {context.executor, std::move(awaitable)};
+    static ValAwaitable await_transform(const ExecutorRef& executor, const TaskContext&, emscripten::val awaitable) {
+        return ValAwaitable {executor, std::move(awaitable)};
     }
 };
 

@@ -45,8 +45,9 @@ inline SleepAwaitable sleep(uint32_t ms) {
 
 template <>
 struct await_ready_trait<SleepAwaitable> {
-    static detail::CancelableSleepHelper await_transform(const TaskContext& context, SleepAwaitable&& awaitable) {
-        return {context.executor, std::move(awaitable), context.stopToken};
+    static detail::CancelableSleepHelper
+    await_transform(const ExecutorRef& executor, const TaskContext& context, SleepAwaitable&& awaitable) {
+        return {executor, std::move(awaitable), context.stopToken};
     }
 };
 

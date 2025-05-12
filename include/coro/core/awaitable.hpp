@@ -47,14 +47,15 @@ struct Awaitable {
         CoroHandle awaitingHandle = CoroHandle::fromTypedHandle(awaiter);
         auto& awaitingPromise = awaiter.promise();
         auto& taskPromise = _task.promise();
-        if (taskPromise.context.executor == nullptr) {
+        if (taskPromise.executor == nullptr) {
             // if task is not scheduled on any executor,
             // copy awaiter task context and schedule on the same executor
-            taskPromise.context = awaitingPromise.context;
-            awaitingPromise.context.executor->next(_task.handle());
-        } else if (taskPromise.context.executor != awaitingPromise.context.executor) {
+            taskPromise.executor = awaitingPromise.executor;
+            taskPromise.inheritContext(awaitingPromise);
+            taskPromise.executor->next(_task.handle());
+        } else if (taskPromise.executor != awaitingPromise.executor) {
             // mark awaiter as waiting for external execution
-            awaitingPromise.context.executor->external(awaitingHandle);
+            awaitingPromise.executor->external(awaitingHandle);
         }
         taskPromise.set_continuation(std::move(awaitingHandle));
     }

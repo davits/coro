@@ -30,7 +30,7 @@ coro::Task<double> simple() {
 
 struct Cancelled {};
 
-TEST(Stop, Builtin) {
+TEST(Stop, Normal) {
     coro::StopSource ss1;
     coro::StopSource ss2 {std::make_exception_ptr(Cancelled {})};
     coro::StopSource ss3;
@@ -54,4 +54,20 @@ TEST(Stop, Builtin) {
     EXPECT_THROW(future1.get(), coro::StopError);
     EXPECT_THROW(future2.get(), Cancelled);
     EXPECT_DOUBLE_EQ(future3.get(), 0.5);
+}
+
+TEST(Stop, StoppedToken) {
+    coro::StopSource ss;
+    ss.requestStop();
+
+    auto executor = coro::SerialExecutor::create();
+    auto task1 = simple();
+    task1.setStopToken(ss.token());
+    executor->schedule(std::move(task1));
+
+    auto task2 = simple();
+    task2.setStopToken(ss.token());
+    auto future = executor->future(std::move(task2));
+
+    EXPECT_THROW(future.get(), coro::StopError);
 }

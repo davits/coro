@@ -43,7 +43,7 @@ public:
 public:
     template <typename R>
     emscripten::val promise(Task<R>&& task) {
-        auto taskContext = task.handle().promise().context;
+        task.handle().promise().enableContextInheritance(false);
         auto promise = detail::JSPromise::create();
         auto jsPromise = promise.promise();
         auto wrapper = [](Task<R> task, detail::JSPromise promise) -> Task<void> {
@@ -60,7 +60,6 @@ public:
                 promise.reject(std::move(error));
             }
         }(std::move(task), std::move(promise));
-        wrapper.handle().promise().context = taskContext;
         Executor::schedule(std::move(wrapper));
         co_return jsPromise;
     }

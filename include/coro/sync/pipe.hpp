@@ -144,8 +144,9 @@ void PipeDataAwaitable<T>::dataAvailable(T&& data) {
 
 template <typename T>
 struct await_ready_trait<PipeDataReader<T>> {
-    static PipeDataAwaitable<T> await_transform(const TaskContext& context, PipeDataReader<T>&& awaitable) {
-        return PipeDataAwaitable<T> {awaitable, context.executor};
+    static PipeDataAwaitable<T>
+    await_transform(const ExecutorRef& executor, const TaskContext&, PipeDataReader<T>&& awaitable) {
+        return PipeDataAwaitable<T> {awaitable, executor};
     }
 };
 

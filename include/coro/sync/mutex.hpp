@@ -153,8 +153,8 @@ inline void Mutex::unlock() {
 
 template <>
 struct await_ready_trait<Mutex> {
-    static detail::MutexAwaitable await_transform(const TaskContext& context, Mutex& mutex) {
-        return detail::MutexAwaitable {&mutex, context.executor};
+    static detail::MutexAwaitable await_transform(const ExecutorRef& executor, const TaskContext&, Mutex& mutex) {
+        return detail::MutexAwaitable {&mutex, executor};
     }
 };
 

@@ -60,7 +60,7 @@ private:
             auto handles = std::move(it->second);
             for (auto& handle : handles) {
                 auto& promise = handle.promise();
-                promise.context.executor->schedule(std::move(handle));
+                promise.executor->schedule(std::move(handle));
             }
         }
         _timeouts.erase(_timeouts.begin(), it);
@@ -88,7 +88,7 @@ public:
         static detail::TimedScheduler scheduler;
         auto handle = CoroHandle::fromTypedHandle(continuation);
         auto& promise = handle.promise();
-        promise.context.executor->external(handle);
+        promise.executor->external(handle);
         scheduler.timeout(std::chrono::milliseconds {_sleep}, std::move(handle));
     }
 
@@ -106,7 +106,8 @@ inline detail::SleepAwaitable sleep(uint32_t time) {
 
 template <>
 struct await_ready_trait<detail::SleepAwaitable> {
-    static detail::SleepAwaitable&& await_transform(const TaskContext&, detail::SleepAwaitable&& awaitable) {
+    static detail::SleepAwaitable&&
+    await_transform(const ExecutorRef&, const TaskContext&, detail::SleepAwaitable&& awaitable) {
         return std::move(awaitable);
     }
 };

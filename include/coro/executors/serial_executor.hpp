@@ -36,7 +36,7 @@ public:
     std::future<R> future(Task<R>&& task) {
         std::promise<R> promise;
         std::future<R> future = promise.get_future();
-        auto taskContext = task.handle().promise().context;
+        task.handle().promise().enableContextInheritance(false);
         Task<void> wrapper = [](Task<R> task, std::promise<R> promise) -> Task<void> {
             try {
                 if constexpr (std::is_same_v<R, void>) {
@@ -49,7 +49,6 @@ public:
                 promise.set_exception(std::current_exception());
             }
         }(std::move(task), std::move(promise));
-        wrapper.handle().promise().context = taskContext;
         Executor::schedule(std::move(wrapper));
         return future;
     }

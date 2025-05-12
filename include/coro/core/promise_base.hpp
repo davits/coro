@@ -31,6 +31,7 @@ private:
     std::atomic<size_t> _useCount = 0;
 
 public:
+    Executor::Ref executor;
     TaskContext context;
     CoroHandle continuation = nullptr;
 
@@ -41,6 +42,7 @@ protected:
 private:
     mutable std::mutex _mutex;
     ExecutionState _executionState = ExecutionState::Normal;
+    bool _inheritContext = true;
 
 public:
     void emplace_exception(std::exception_ptr ptr) {
@@ -87,7 +89,7 @@ public:
     template <typename T>
     decltype(auto) await_transform(T&& obj) {
         using RawT = std::remove_cvref_t<T>;
-        return await_ready_trait<RawT>::await_transform(context, std::forward<T>(obj));
+        return await_ready_trait<RawT>::await_transform(executor, context, std::forward<T>(obj));
     }
 
 public:
@@ -106,8 +108,7 @@ public:
 
     bool stop_if_necessary() {
         std::scoped_lock lock {_mutex};
-        if (context.stopToken.stopRequested() && _executionState != ExecutionState::Cancelling && continuation)
-            [[unlikely]] {
+        if (context.stopToken.stopRequested() && _executionState != ExecutionState::Cancelling) [[unlikely]] {
             emplace_exception(context.stopToken.exception());
             _executionState = ExecutionState::Cancelling;
             schedule_continuation();
@@ -115,6 +116,16 @@ public:
             return true;
         }
         return false;
+    }
+
+    void enableContextInheritance(bool inherit) {
+        _inheritContext = inherit;
+    }
+
+    void inheritContext(const PromiseBase& from) {
+        if (_inheritContext) [[likely]] {
+            context = from.context;
+        }
     }
 
 private:
@@ -129,11 +140,11 @@ private:
             if (_executionState == ExecutionState::Cancelling) {
                 continuation.promise()._executionState = ExecutionState::Cancelling;
             }
-            auto contExecutor = continuation.promise().context.executor;
-            if (contExecutor == context.executor) {
-                contExecutor->next(std::move(continuation));
+            auto continuationExecutor = continuation.promise().executor;
+            if (continuationExecutor == executor) {
+                continuationExecutor->next(std::move(continuation));
             } else {
-                contExecutor->schedule(std::move(continuation));
+                continuationExecutor->schedule(std::move(continuation));
             }
         }
     }

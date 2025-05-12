@@ -114,8 +114,8 @@ inline void Latch::count_down(std::ptrdiff_t n) {
 
 template <>
 struct await_ready_trait<Latch> {
-    static detail::LatchAwaitable await_transform(const TaskContext& context, Latch& latch) {
-        return detail::LatchAwaitable {&latch, context.executor};
+    static detail::LatchAwaitable await_transform(const ExecutorRef& executor, const TaskContext&, Latch& latch) {
+        return detail::LatchAwaitable {&latch, executor};
     }
 };
 
