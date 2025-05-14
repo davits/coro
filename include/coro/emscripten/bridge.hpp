@@ -6,8 +6,8 @@
 
 #include "../core/executor.hpp"
 #include "../core/handle.hpp"
-#include "../core/task_context.hpp"
 #include "../core/handle.inl.hpp"
+#include "../core/promise_base.hpp"
 
 #include <emscripten/val.h>
 
@@ -84,8 +84,8 @@ private:
 
 template <>
 struct await_ready_trait<emscripten::val> {
-    static ValAwaitable await_transform(const ExecutorRef& executor, const TaskContext&, emscripten::val awaitable) {
-        return ValAwaitable {executor, std::move(awaitable)};
+    static ValAwaitable await_transform(const PromiseBase& promise, emscripten::val awaitable) {
+        return ValAwaitable {promise.executor, std::move(awaitable)};
     }
 };
 

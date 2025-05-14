@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../core/executor.hpp"
-#include "../core/task_context.hpp"
+#include "../core/promise_base.hpp"
 #include "../core/traits.hpp"
 #include "../detail/containers.hpp"
 #include "../detail/utils.hpp"
@@ -153,8 +153,8 @@ inline void Mutex::unlock() {
 
 template <>
 struct await_ready_trait<Mutex> {
-    static detail::MutexAwaitable await_transform(const ExecutorRef& executor, const TaskContext&, Mutex& mutex) {
-        return detail::MutexAwaitable {&mutex, executor};
+    static detail::MutexAwaitable await_transform(const PromiseBase& promise, Mutex& mutex) {
+        return detail::MutexAwaitable {&mutex, promise.executor};
     }
 };
 

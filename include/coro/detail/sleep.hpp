@@ -115,8 +115,7 @@ inline detail::SleepAwaitable sleep(uint32_t time) {
 
 template <>
 struct await_ready_trait<detail::SleepAwaitable> {
-    static detail::SleepAwaitable&&
-    await_transform(const ExecutorRef&, const TaskContext&, detail::SleepAwaitable&& awaitable) {
+    static detail::SleepAwaitable&& await_transform(const PromiseBase&, detail::SleepAwaitable&& awaitable) {
         return std::move(awaitable);
     }
 };

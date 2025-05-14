@@ -2,7 +2,7 @@
 
 #include "../core/awaitable.hpp"
 #include "../core/callback.hpp"
-#include "../core/task_context.hpp"
+#include "../core/promise_base.hpp"
 #include "../core/traits.hpp"
 #include "../core/stop.hpp"
 
@@ -95,9 +95,8 @@ inline AbortTokenAwaitable abortSignal(int32_t timeout = -1) {
 
 template <>
 struct await_ready_trait<AbortTokenAwaitable> {
-    static decltype(auto)
-    await_transform(const ExecutorRef&, TaskContext& context, const AbortTokenAwaitable& awaitable) {
-        return ReadyAwaitable {AbortToken {context.stopToken, awaitable.timeout}};
+    static decltype(auto) await_transform(const PromiseBase& promise, const AbortTokenAwaitable& awaitable) {
+        return ReadyAwaitable {AbortToken {promise.context.stopToken, awaitable.timeout}};
     }
 };
 

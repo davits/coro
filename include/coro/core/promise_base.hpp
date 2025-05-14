@@ -4,13 +4,25 @@
 #include "executor.hpp"
 #include "handle.hpp"
 #include "stop.hpp"
-#include "task_context.hpp"
 #include "task.fwd.hpp"
 #include "traits.hpp"
 
 #include <mutex>
 
 namespace coro {
+
+struct UserData {
+    using Ref = std::shared_ptr<UserData>;
+
+    virtual ~UserData() = 0;
+};
+
+inline UserData::~UserData() {}
+
+struct TaskContext {
+    StopToken stopToken = nullptr;
+    UserData::Ref userData;
+};
 
 class PromiseBase {
 public:
@@ -87,9 +99,9 @@ public:
     Awaitable<Task<U>> await_transform(Task<U>&& task);
 
     template <typename T>
-    decltype(auto) await_transform(T&& obj) {
+    decltype(auto) await_transform(T&& obj) const {
         using RawT = std::remove_cvref_t<T>;
-        return await_ready_trait<RawT>::await_transform(executor, context, std::forward<T>(obj));
+        return await_ready_trait<RawT>::await_transform(*this, std::forward<T>(obj));
     }
 
 public:
@@ -150,6 +162,42 @@ private:
                 continuationExecutor->schedule(std::move(continuation));
             }
         }
+    }
+};
+
+/// Helper to easily access to the current executor within the coroutine.
+/// auto executor = co_await coro::currentExecutor;
+struct ExecutorAwaitable {};
+inline ExecutorAwaitable currentExecutor;
+
+template <>
+struct await_ready_trait<ExecutorAwaitable> {
+    static decltype(auto) await_transform(const PromiseBase& promise, ExecutorAwaitable) {
+        return ReadyAwaitable<const Executor::Ref&> {promise.executor};
+    }
+};
+
+/// Helper to easily access to the stop token of the current task
+/// auto token = co_await coro::currentStopToken;
+struct StopTokenAwaitable {};
+inline StopTokenAwaitable currentStopToken;
+
+template <>
+struct await_ready_trait<StopTokenAwaitable> {
+    static decltype(auto) await_transform(const PromiseBase& promise, StopTokenAwaitable) {
+        return ReadyAwaitable<const StopToken&> {promise.context.stopToken};
+    }
+};
+
+/// Helper to easily access to the user data of the current task
+/// auto token = co_await coro::currentUserData;
+struct UserDataAwaitable {};
+inline UserDataAwaitable currentUserData;
+
+template <>
+struct await_ready_trait<UserDataAwaitable> {
+    static decltype(auto) await_transform(const PromiseBase& promise, UserDataAwaitable) {
+        return ReadyAwaitable<const UserData::Ref&> {promise.context.userData};
     }
 };
 
