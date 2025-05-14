@@ -106,8 +106,11 @@ public:
         return _executionState == ExecutionState::Finished;
     }
 
-    bool stop_if_necessary() {
+    bool skipExecution() {
         std::scoped_lock lock {_mutex};
+        if (_executionState == ExecutionState::Finished) {
+            return true;
+        }
         if (context.stopToken.stopRequested() && _executionState != ExecutionState::Cancelling) [[unlikely]] {
             emplace_exception(context.stopToken.exception());
             _executionState = ExecutionState::Cancelling;

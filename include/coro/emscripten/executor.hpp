@@ -81,7 +81,7 @@ private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
         coro::detail::Deque<CoroHandle> tasks;
-        std::map<CoroHandle, StopCallback::Ref> externals;
+        std::map<CoroHandle, Callback::Ref> externals;
         detail::JSPromise coroScheduled = detail::JSPromise::null();
         emscripten::val runner;
         uint32_t maxBlockingTime = 1000 / 30;
@@ -110,9 +110,10 @@ private:
         }
 
         void external(CoroHandle&& handle) {
-            auto callback = handle.promise().context.stopToken.addStopCallback(
-                [handle]() mutable { handle.promise().stop_if_necessary(); });
-            externals.emplace(std::move(handle), std::move(callback));
+            auto& promise = handle.promise();
+            auto callback = Callback::create([handle]() mutable { handle.promise().skipExecution(); });
+            externals.emplace(std::move(handle), callback);
+            promise.context.stopToken.addStopCallback(callback);
         }
 
         void executorDestroyed() {
@@ -135,7 +136,7 @@ private:
                 }
                 continue;
             }
-            if (next.promise().stop_if_necessary()) [[unlikely]] {
+            if (next.promise().skipExecution()) [[unlikely]] {
                 continue;
             }
             next.resume();

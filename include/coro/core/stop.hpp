@@ -1,5 +1,7 @@
 #pragma once
 
+#include "callback.hpp"
+
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -14,34 +16,6 @@ public:
 };
 
 class StopToken;
-
-class StopCallback {
-public:
-    using Ref = std::shared_ptr<StopCallback>;
-    using WeakRef = std::weak_ptr<StopCallback>;
-    using Func = std::function<void()>;
-
-private:
-    struct Tag {};
-
-public:
-    StopCallback(Tag, Func&& function)
-        : _function(std::move(function)) {}
-
-    static Ref create(Func function) {
-        return std::make_shared<StopCallback>(Tag {}, std::move(function));
-    }
-
-    void invoke() noexcept {
-        try {
-            _function();
-        } catch (...) {
-        }
-    }
-
-private:
-    Func _function;
-};
 
 class StopState : public std::enable_shared_from_this<StopState> {
 public:
@@ -58,22 +32,31 @@ public:
 
 public:
     void requestStop() noexcept {
-        _stopRequested.store(true, std::memory_order_relaxed);
-        for (const auto& weakCB : _callbacks) {
+        std::scoped_lock lock {_mutex};
+        auto callbacks = std::move(_callbacks);
+        for (const auto& weakCB : callbacks) {
             auto callback = weakCB.lock();
             if (callback) {
                 callback->invoke();
             }
         }
-        _callbacks.clear();
+        _stopRequested.store(true);
     }
 
     bool stopRequested() const noexcept {
-        return _stopRequested.load(std::memory_order_relaxed);
+        return _stopRequested.load();
     }
 
-    void addStopCallback(StopCallback::WeakRef&& callback) {
-        _callbacks.push_back(std::move(callback));
+    void addStopCallback(Callback::WeakRef&& callbackWeak) {
+        std::scoped_lock lock {_mutex};
+        if (_stopRequested) {
+            auto callbackRef = callbackWeak.lock();
+            if (callbackRef) {
+                callbackRef->invoke();
+            }
+        } else {
+            _callbacks.push_back(std::move(callbackWeak));
+        }
     }
 
     std::exception_ptr exception() const {
@@ -82,8 +65,9 @@ public:
 
 private:
     std::atomic<bool> _stopRequested = false;
-    std::vector<StopCallback::WeakRef> _callbacks;
+    std::vector<Callback::WeakRef> _callbacks;
     std::exception_ptr _exception;
+    std::mutex _mutex;
 };
 
 class StopToken {
@@ -113,23 +97,27 @@ public:
     }
 
 public:
-    void addStopCallback(StopCallback::WeakRef callback) {
+    void addStopCallback(Callback::WeakRef callback) {
         if (_state) {
             _state->addStopCallback(std::move(callback));
         }
     }
 
-    StopCallback::Ref addStopCallback(StopCallback::Func callback) {
+    Callback::Ref addStopCallback(Callback::Func func) {
         if (!_state) {
-            return StopCallback::Ref {};
+            return Callback::Ref {};
         }
-        auto result = StopCallback::create(std::move(callback));
+        auto result = Callback::create(std::move(func));
         addStopCallback(result);
         return result;
     }
 
     bool operator==(const StopToken& other) const {
         return _state == other._state;
+    }
+
+    explicit operator bool() const {
+        return static_cast<bool>(_state);
     }
 
 private:

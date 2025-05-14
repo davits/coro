@@ -44,11 +44,11 @@ public:
         _thread.join();
     }
 
-    void timeout(std::chrono::milliseconds time, CoroHandle handle) {
+    void timeout(std::chrono::milliseconds time, Callback::WeakRef callback) {
         auto now = Clock::now();
         now += time;
         std::scoped_lock lock {_mutex};
-        _timeouts[now].push_back(std::move(handle));
+        _timeouts[now].push_back(std::move(callback));
         _cv.notify_one();
     }
 
@@ -57,10 +57,11 @@ private:
         auto now = Clock::now();
         auto it = _timeouts.begin();
         for (; it != _timeouts.end() && now >= it->first; ++it) {
-            auto handles = std::move(it->second);
-            for (auto& handle : handles) {
-                auto& promise = handle.promise();
-                promise.executor->schedule(std::move(handle));
+            for (auto& weakCB : it->second) {
+                auto callback = weakCB.lock();
+                if (callback) {
+                    callback->invoke();
+                }
             }
         }
         _timeouts.erase(_timeouts.begin(), it);
@@ -68,7 +69,7 @@ private:
 
 private:
     std::thread _thread;
-    std::map<TimePoint, std::vector<CoroHandle>> _timeouts;
+    std::map<TimePoint, std::vector<Callback::WeakRef>> _timeouts;
     std::condition_variable _cv;
     std::mutex _mutex;
     std::atomic<bool> _loop = true;
@@ -89,12 +90,20 @@ public:
         auto handle = CoroHandle::fromTypedHandle(continuation);
         auto& promise = handle.promise();
         promise.executor->external(handle);
-        scheduler.timeout(std::chrono::milliseconds {_sleep}, std::move(handle));
+        _callback = Callback::create([handle = std::move(handle)]() {
+            auto& promise = handle.promise();
+            promise.executor->schedule(std::move(handle));
+        });
+        scheduler.timeout(std::chrono::milliseconds {_sleep}, _callback);
+        // TODO: reset timer callback and schedule continuation on stop signal.
     }
 
-    void await_resume() noexcept {}
+    void await_resume() noexcept {
+        _callback.reset();
+    }
 
 private:
+    Callback::Ref _callback;
     uint32_t _sleep;
 };
 

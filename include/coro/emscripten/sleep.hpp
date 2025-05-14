@@ -11,23 +11,30 @@ namespace coro {
 namespace detail {
 extern "C" emscripten::EM_VAL _coro_lib_sleep(int32_t ms);
 
-class CancelableSleepHelper {
+// This class ensures that sleep works in the coro::Task coroutine context
+class CancelableSleepHelper : public ValAwaitable {
 public:
     CancelableSleepHelper(coro::Executor::Ref executor, emscripten::val sleep, StopToken token)
-        : _promiseAwaitable(std::move(executor), sleep["promise"])
+        : ValAwaitable(executor, sleep["promise"])
         , _stopCallback(token.addStopCallback([sleep]() { sleep.call<void>("cancel"); })) {}
 
-    ValAwaitable& operator co_await() {
-        return _promiseAwaitable.operator co_await();
+    CancelableSleepHelper& operator co_await() {
+        ValAwaitable::operator co_await();
+        return *this;
+    }
+
+    emscripten::val await_resume() {
+        _stopCallback.reset();
+        return ValAwaitable::await_resume();
     }
 
 private:
-    ValAwaitable _promiseAwaitable;
-    StopCallback::Ref _stopCallback;
+    Callback::Ref _stopCallback;
 };
 
 } // namespace detail
 
+// This class ensures that sleep works in the emscripten::val coroutine context
 struct SleepAwaitable : public emscripten::val {
     SleepAwaitable(emscripten::val&& val)
         : emscripten::val(std::move(val)) {}

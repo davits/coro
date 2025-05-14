@@ -80,7 +80,7 @@ private:
     struct RunState {
         using Ref = std::shared_ptr<RunState>;
         detail::Deque<CoroHandle> tasks;
-        std::map<CoroHandle, StopCallback::Ref> externals;
+        std::map<CoroHandle, Callback::Ref> externals;
         std::condition_variable cv;
         std::mutex mutex;
         std::atomic<bool> finished = false;
@@ -110,10 +110,17 @@ private:
         }
 
         void external(CoroHandle&& handle) {
-            std::scoped_lock lock {mutex};
-            auto callback = handle.promise().context.stopToken.addStopCallback(
-                [handle]() mutable { handle.promise().stop_if_necessary(); });
-            externals.emplace(std::move(handle), std::move(callback));
+            auto& promise = handle.promise();
+            auto callback = Callback::create([handle]() mutable { handle.promise().skipExecution(); });
+            {
+                std::scoped_lock lock {mutex};
+                externals.emplace(std::move(handle), callback);
+            }
+            // Add stop callback can fire the callback in case if token was already signaled
+            // which in case will try to skip execution and schedule continuation of the handle.
+            // So we release mutex before the call to give the schedule a chance.
+            // Might be a better idea to replace the mutex with recursive_mutex.
+            promise.context.stopToken.addStopCallback(callback);
         }
 
         void executorDestroyed() {
@@ -142,7 +149,7 @@ private:
             CoroHandle task = state->tasks.popBack().value();
             // release lock and give a chance to schedule while task is being executed
             lock.unlock();
-            if (task.promise().stop_if_necessary()) [[unlikely]] {
+            if (task.promise().skipExecution()) [[unlikely]] {
                 continue;
             }
             task.resume();

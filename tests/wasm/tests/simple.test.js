@@ -53,3 +53,8 @@ test("Cancellation", async () => {
         }
     );
 })
+
+test("AbortController", async () => {
+    expect(await coro.testAbortController()).toBe(42);
+    expect(await coro.testAbortControllerTimeout()).toBe(42);
+})

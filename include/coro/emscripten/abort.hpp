@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/awaitable.hpp"
+#include "../core/callback.hpp"
 #include "../core/task_context.hpp"
 #include "../core/traits.hpp"
 #include "../core/stop.hpp"
@@ -25,16 +26,18 @@ public:
         requires(std::same_as<Args, AbortSignal> && ...)
     static AbortSignal any(const Args&... args) {
         using namespace emscripten;
-        auto signal = val::global("AbortSignal").call<val>("any", args._signal...);
+        val array = val::array();
+        (array.call<void>("push", args._signal), ...);
+        auto signal = val::global("AbortSignal").call<val>("any", array);
         return AbortSignal {std::move(signal)};
     }
 
 public:
     bool aborted() const {
-        return _signal.call<bool>("aborted");
+        return _signal["aborted"].as<bool>();
     }
 
-    const emscripten::val& signal() {
+    operator emscripten::val() const {
         return _signal;
     }
 
@@ -54,7 +57,7 @@ public:
 
     AbortSignal signal(int32_t timeout = -1) {
         using namespace emscripten;
-        AbortSignal signal {_controller.call<val>("signal")};
+        AbortSignal signal {_controller["signal"]};
         if (timeout != -1) {
             signal = AbortSignal::any(signal, AbortSignal::timeout(timeout));
         }
@@ -73,13 +76,13 @@ public:
         , _callback(token.addStopCallback([this]() { _controller.abort(); })) {}
 
     operator emscripten::val() {
-        return _signal.signal();
+        return static_cast<emscripten::val>(_signal);
     }
 
 private:
     AbortController _controller;
     AbortSignal _signal;
-    StopCallback::Ref _callback;
+    Callback::Ref _callback;
 };
 
 struct AbortTokenAwaitable {

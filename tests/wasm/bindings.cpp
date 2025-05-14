@@ -3,6 +3,7 @@
 // for testing purposes
 #define private protected
 #include <coro/coro.hpp>
+#include <coro/emscripten/abort.hpp>
 #include <coro/emscripten/executor.hpp>
 #include <coro/emscripten/bridge.hpp>
 
@@ -78,8 +79,32 @@ std::shared_ptr<CancellableTask> launchCancellableTask() {
     return std::make_shared<CancellableTask>(std::move(promise), std::move(stop));
 }
 
+emscripten::val testAbortSignal(emscripten::val signal) {
+    co_await coro::sleep(100);
+    if (signal["aborted"].as<bool>()) {
+        co_return emscripten::val {42};
+    }
+    co_return emscripten::val {11};
+}
+
+coro::Task<int> testAbortController() {
+    coro::AbortController controller;
+    auto task = testAbortSignal(controller.signal());
+    co_await coro::sleep(50);
+    controller.abort();
+    auto result = co_await task;
+    co_return result.as<int>();
+}
+
+coro::Task<int> testAbortControllerTimeout() {
+    coro::AbortController controller;
+    auto task = testAbortSignal(controller.signal(50));
+    auto result = co_await task;
+    co_return result.as<int>();
+}
+
 EMSCRIPTEN_BINDINGS(Test) {
-    emscripten::function("sleepyTask", +[] { return coro::taskPromise(sleepy<5>(false)); });
+    emscripten::function("sleepyTask", +[]() { return coro::taskPromise(sleepy<5>(false)); });
     emscripten::function("failingTask", +[]() { return coro::taskPromise(sleepy<5>(true)); });
     emscripten::function(
         "lifetimeTask", +[]() {
@@ -95,4 +120,7 @@ EMSCRIPTEN_BINDINGS(Test) {
         .function("promise", &CancellableTask::promise);
 
     emscripten::function("launchCancellableTask", &launchCancellableTask);
+    emscripten::function("testAbortController", +[]() { return coro::taskPromise(testAbortController()); });
+    emscripten::function(
+        "testAbortControllerTimeout", +[]() { return coro::taskPromise(testAbortControllerTimeout()); });
 }
