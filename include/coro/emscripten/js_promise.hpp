@@ -7,7 +7,7 @@ namespace coro::detail {
 extern "C" emscripten::EM_VAL _coro_lib_make_promise(emscripten::EM_VAL* resolve, emscripten::EM_VAL* reject);
 
 class JSPromise {
-protected:
+public:
     JSPromise() {}
 
 public:
