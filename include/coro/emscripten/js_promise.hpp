@@ -25,9 +25,16 @@ public:
         return JSPromise {};
     }
 
-    void resolve(const emscripten::val& value) {
+    void resolve(const emscripten::val& value = emscripten::val::undefined()) {
         if (!_resolve.isUndefined()) {
             _resolve(value);
+            reset();
+        }
+    }
+
+    void reject(const std::string_view error) {
+        if (!_reject.isUndefined()) {
+            _reject(emscripten::val {error});
             reset();
         }
     }
