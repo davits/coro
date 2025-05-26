@@ -23,15 +23,17 @@ protected:
     struct Tag {};
 
 public:
-    SerialWebExecutor(Tag, uint32_t maxBlockingTime) {
+    SerialWebExecutor(Tag, uint32_t maxBlockingTime, uint32_t checkNthOperation) {
         _state = std::make_shared<RunState>();
         _state->maxBlockingTime = maxBlockingTime;
+        _state->checkNthOperation = checkNthOperation;
         _state->runner = runScheduled(_state);
     }
 
     using Ref = std::shared_ptr<SerialWebExecutor>;
-    static Ref create(uint32_t maxBlockingTime = 1000 / 30) {
-        return std::make_shared<SerialWebExecutor>(Tag {}, maxBlockingTime);
+    static Ref create(uint32_t maxBlockingTime = 1000 / 30,
+                      uint32_t checkNthOperation = std::numeric_limits<uint32_t>::max()) {
+        return std::make_shared<SerialWebExecutor>(Tag {}, maxBlockingTime, checkNthOperation);
     }
 
     SerialWebExecutor(const SerialWebExecutor&) = delete;
@@ -85,6 +87,7 @@ private:
         detail::JSPromise coroScheduled = detail::JSPromise::null();
         emscripten::val runner;
         uint32_t maxBlockingTime = 1000 / 30;
+        uint32_t checkNthOperation = std::numeric_limits<uint32_t>::max();
         bool finished = false;
 
         void schedule(CoroHandle&& handle) {
@@ -126,6 +129,7 @@ private:
 
     static emscripten::val runScheduled(RunState::Ref state) {
         auto start = now();
+        uint32_t opCount = 0;
         while (true) {
             auto next = state->tasks.popBack().value_or(nullptr);
             if (!next) {
@@ -139,6 +143,7 @@ private:
             if (next.promise().skipExecution()) [[unlikely]] {
                 continue;
             }
+            ++opCount;
             next.resume();
             // reset to force the last task keeping executor alive to be destructed and hence
             // cause destruction of the executor which in turn will set finished flag to true.
@@ -146,10 +151,13 @@ private:
             if (state->finished) [[unlikely]] {
                 break;
             }
-            auto passed = passedTime(start);
-            if (passed > state->maxBlockingTime) {
-                co_await sleep(0); // defer the rest to the next JS event loop cycle
-                start = now();
+            if (opCount >= state->checkNthOperation) {
+                opCount = 0;
+                auto passed = passedTime(start);
+                if (passed > state->maxBlockingTime) {
+                    co_await sleep(0); // defer the rest to the next JS event loop cycle
+                    start = now();
+                }
             }
         }
         co_return emscripten::val::undefined();

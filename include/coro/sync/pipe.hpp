@@ -12,68 +12,24 @@
 namespace coro {
 
 template <typename T>
-class AsyncPipe;
-
-template <typename T>
 class PipeDataReader;
 
 template <typename T>
-class PipeDataAwaitable {
-public:
-    PipeDataAwaitable(PipeDataReader<T>& other, Executor::Ref executor);
+class PipeDataAwaitable;
 
-    PipeDataAwaitable& operator co_await();
-
-    bool await_ready() noexcept;
-
-    bool await_suspend(std::coroutine_handle<> continuation) noexcept;
-
-    T await_resume() noexcept;
-
-private:
-    friend AsyncPipe<T>;
-    void dataAvailable(T&& data);
-
-private:
-    AsyncPipe<T>& _pipe;
-    std::optional<T> _data;
-    Executor::Ref _executor;
-    CoroHandle _continuation;
-};
-
+/**
+ * @brief Asynchronous pipe providing means to implement multiple producer multiple consumer pattern.
+ * Unlike standard posix pipe, user read writes objects of type T rather then raw bytes.
+ * There is no limitation on pipe size and write() is non blocking. Read is asynchronous so in order to read one has to
+ * co_await for it.
+ */
 template <typename T>
-class PipeDataReader {
+class Pipe {
 public:
-    PipeDataReader(AsyncPipe<T>& pipe)
-        : _pipe(pipe) {}
-
-private:
-    friend class PipeDataAwaitable<T>;
-    AsyncPipe<T>& _pipe;
-};
-
-template <typename T>
-class AsyncPipe {
-    struct Tag {};
+    Pipe() {}
 
 public:
-    AsyncPipe(Tag) {}
-
-    using Ref = std::shared_ptr<AsyncPipe>;
-    Ref create() {
-        return std::make_shared<AsyncPipe>(Tag {});
-    }
-
-public:
-    void write(T data) {
-        std::scoped_lock lock {_mutex};
-        auto reader = _readers.pop();
-        if (reader) {
-            reader->dataAvailable(std::move(data));
-        } else {
-            _data.push(std::move(data));
-        }
-    }
+    void write(T data);
 
     PipeDataReader<T> read() {
         return PipeDataReader<T> {*this};
@@ -105,47 +61,76 @@ private:
 };
 
 template <typename T>
-PipeDataAwaitable<T>::PipeDataAwaitable(PipeDataReader<T>& reader, Executor::Ref executor)
-    : _pipe(reader._pipe)
-    , _executor(std::move(executor)) {}
+class PipeDataAwaitable {
+public:
+    PipeDataAwaitable(PipeDataReader<T>&& reader, Executor::Ref executor)
+        : _pipe(reader._pipe)
+        , _executor(std::move(executor)) {}
 
-template <typename T>
-PipeDataAwaitable<T>& PipeDataAwaitable<T>::operator co_await() {
-    _data = _pipe.readData();
-    return *this;
-}
-
-template <typename T>
-bool PipeDataAwaitable<T>::await_ready() noexcept {
-    return _data.has_value();
-}
-
-template <typename T>
-bool PipeDataAwaitable<T>::await_suspend(std::coroutine_handle<> continuation) noexcept {
-    _continuation = continuation;
-    auto data = _pipe.addReader(this);
-    if (data) {
-        _data = std::move(data);
-        return false;
+    PipeDataAwaitable& operator co_await() {
+        _data = _pipe.readData();
+        return *this;
     }
-    return true;
+
+    bool await_ready() noexcept {
+        return _data.has_value();
+    }
+
+    template <typename Promise>
+    bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
+        _continuation = CoroHandle::fromTypedHandle(continuation);
+        auto data = _pipe.addReader(this);
+        if (data) {
+            _data = std::move(data);
+            return false;
+        }
+        return true;
+    }
+
+    T await_resume() noexcept {
+        return std::move(_data).value();
+    }
+
+private:
+    friend Pipe<T>;
+    void dataAvailable(T&& data) {
+        _data = std::move(data);
+        _executor->schedule(_continuation);
+    }
+
+private:
+    Pipe<T>& _pipe;
+    std::optional<T> _data;
+    Executor::Ref _executor;
+    CoroHandle _continuation;
+};
+
+template <typename T>
+void Pipe<T>::write(T data) {
+    std::scoped_lock lock {_mutex};
+    auto reader = _readers.pop().value_or(nullptr);
+    if (reader) {
+        reader->dataAvailable(std::move(data));
+    } else {
+        _data.push(std::move(data));
+    }
 }
 
 template <typename T>
-T PipeDataAwaitable<T>::await_resume() noexcept {
-    return std::move(_data).value();
-}
+class PipeDataReader {
+public:
+    PipeDataReader(Pipe<T>& pipe)
+        : _pipe(pipe) {}
 
-template <typename T>
-void PipeDataAwaitable<T>::dataAvailable(T&& data) {
-    _data = std::move(data);
-    _executor->schedule(_continuation);
-}
+private:
+    friend class PipeDataAwaitable<T>;
+    Pipe<T>& _pipe;
+};
 
 template <typename T>
 struct await_ready_trait<PipeDataReader<T>> {
     static PipeDataAwaitable<T> await_transform(const PromiseBase& promise, PipeDataReader<T>&& awaitable) {
-        return PipeDataAwaitable<T> {awaitable, promise.executor};
+        return PipeDataAwaitable<T> {std::move(awaitable), promise.executor};
     }
 };
 

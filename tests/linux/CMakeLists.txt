@@ -39,3 +39,8 @@ add_executable(cross cross.cpp)
 target_link_libraries(cross coro gtest_main)
 add_test(NAME cross COMMAND cross)
 set_tests_properties(cross PROPERTIES TIMEOUT 2)
+
+add_executable(pipe pipe.cpp)
+target_link_libraries(pipe coro gtest_main)
+add_test(NAME pipe COMMAND pipe)
+set_tests_properties(pipe PROPERTIES TIMEOUT 2)
