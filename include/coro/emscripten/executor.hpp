@@ -125,7 +125,7 @@ private:
     };
 
     static emscripten::val runScheduled(RunState::Ref state) {
-        auto start = now();
+        // auto start = now();
         while (true) {
             auto next = state->tasks.popBack().value_or(nullptr);
             if (!next) {
@@ -146,11 +146,11 @@ private:
             if (state->finished) [[unlikely]] {
                 break;
             }
-            auto passed = passedTime(start);
-            if (passed > state->maxBlockingTime) {
-                co_await sleep(0); // defer the rest to the next JS event loop cycle
-                start = now();
-            }
+            // auto passed = passedTime(start);
+            // if (passed > state->maxBlockingTime) {
+            //     co_await sleep(0); // defer the rest to the next JS event loop cycle
+            //     start = now();
+            // }
         }
         co_return emscripten::val::undefined();
     }
