@@ -103,8 +103,8 @@ Task<std::vector<T>> all(std::vector<Task<T>> tasks) {
 
     std::exception_ptr eptr = nullptr;
     size_t idx = 0;
-    for (auto& task : tasks) {
-        executor->next(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
+    for (auto it = tasks.rbegin(); it != tasks.rend(); ++it) {
+        executor->next(detail::runAndNotify(std::move(*it), latch, eptr, results, idx++));
     }
 
     co_await latch;
