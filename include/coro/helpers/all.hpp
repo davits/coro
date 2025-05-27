@@ -11,25 +11,14 @@ namespace coro {
 
 namespace detail {
 
-template <typename T, typename RType = T>
-Task<void> runAndNotify(Task<T> task, Latch& latch, std::exception_ptr& eptr, std::vector<RType>& results, int idx) {
+template <typename R, typename T>
+Task<void> runAndNotify(Task<T> task, Latch& latch, std::exception_ptr& eptr, R* result) {
     try {
         if constexpr (!std::is_same_v<T, void>) {
-            results[idx] = co_await std::move(task);
+            *result = co_await std::move(task);
         } else {
             co_await std::move(task);
         }
-    } catch (...) {
-        if (!eptr) {
-            eptr = std::current_exception();
-        }
-    }
-    latch.count_down();
-}
-
-inline Task<void> runAndNotify(Task<void> task, Latch& latch, std::exception_ptr& eptr) {
-    try {
-        co_await std::move(task);
     } catch (...) {
         if (!eptr) {
             eptr = std::current_exception();
@@ -43,11 +32,14 @@ inline Task<void> runAndNotify(Task<void> task, Latch& latch, std::exception_ptr
 template <typename... Args>
     requires(std::same_as<Args, void> && ...)
 Task<void> all(Task<Args>... tasks) {
-    Latch latch {sizeof...(tasks)};
+    constexpr size_t count = sizeof...(tasks);
+    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
+    Latch latch {static_cast<std::ptrdiff_t>(count)};
     auto executor = co_await currentExecutor;
-
     std::exception_ptr eptr = nullptr;
-    (executor->next(detail::runAndNotify(std::move(tasks), latch, eptr)), ...);
+
+    (executor->next(detail::runAndNotify<void>(std::move(tasks), latch, eptr, nullptr)), ...);
+
     co_await latch;
     if (eptr) {
         std::rethrow_exception(eptr);
@@ -58,14 +50,15 @@ template <typename T, typename... Args>
     requires(std::same_as<Args, T> && ... && !std::same_as<T, void>)
 Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
     constexpr size_t count = 1 + sizeof...(rest);
-    std::vector<int> results(count);
-    Latch latch {count};
+    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
+    std::vector<T> results(count);
+    Latch latch {static_cast<std::ptrdiff_t>(count)};
     auto executor = co_await currentExecutor;
-
     std::exception_ptr eptr = nullptr;
-    executor->next(detail::runAndNotify(std::move(first), latch, eptr, results, 0));
+
+    executor->next(detail::runAndNotify(std::move(first), latch, eptr, &results[0]));
     size_t idx = 1;
-    (executor->next(detail::runAndNotify(std::move(rest), latch, eptr, results, idx++)), ...);
+    (executor->next(detail::runAndNotify(std::move(rest), latch, eptr, &results[idx++])), ...);
 
     co_await latch;
     if (eptr) {
@@ -76,13 +69,16 @@ Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
 
 template <typename... Args>
 Task<std::vector<std::any>> all(Task<Args>... tasks) {
-    std::vector<std::any> results(sizeof...(tasks));
-    Latch latch {sizeof...(tasks)};
-    auto executor = co_await currentExecutor;
+    constexpr size_t count = sizeof...(tasks);
+    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
 
+    std::vector<std::any> results(count);
+    Latch latch {static_cast<std::ptrdiff_t>(count)};
+    auto executor = co_await currentExecutor;
     std::exception_ptr eptr = nullptr;
+
     size_t idx = 0;
-    (executor->next(detail::runAndNotify(std::move(tasks), latch, eptr, results, idx++)), ...);
+    (executor->next(detail::runAndNotify(std::move(tasks), latch, eptr, &results[idx++])), ...);
 
     co_await latch;
     if (eptr) {
@@ -96,15 +92,14 @@ Task<std::vector<T>> all(std::vector<Task<T>> tasks) {
     if (tasks.empty()) {
         co_return {};
     }
-
-    std::vector<T> results(tasks.size());
-    Latch latch {static_cast<uint32_t>(tasks.size())};
+    const size_t count = tasks.size();
+    std::vector<T> results(count);
+    Latch latch {static_cast<std::ptrdiff_t>(count)};
     auto executor = co_await currentExecutor;
-
     std::exception_ptr eptr = nullptr;
-    size_t idx = 0;
-    for (auto& task : tasks) {
-        executor->next(detail::runAndNotify(std::move(task), latch, eptr, results, idx++));
+
+    for (size_t i = 0; i < tasks.size(); ++i) {
+        executor->next(detail::runAndNotify(std::move(tasks[i]), latch, eptr, &results[i]));
     }
 
     co_await latch;
@@ -121,10 +116,10 @@ inline Task<void> all(std::vector<Task<void>> tasks) {
     auto executor = co_await currentExecutor;
     Latch latch {static_cast<std::ptrdiff_t>(tasks.size())};
     std::exception_ptr eptr = nullptr;
+
     for (auto& task : tasks) {
-        executor->next(detail::runAndNotify(std::move(task), latch, eptr));
+        executor->next(detail::runAndNotify<void>(std::move(task), latch, eptr, nullptr));
     }
-    tasks.clear();
 
     co_await latch;
     if (eptr) {

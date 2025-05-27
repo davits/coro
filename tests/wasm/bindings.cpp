@@ -27,7 +27,7 @@ protected:
 
 public:
     TestExecutor(Tag)
-        : coro::SerialWebExecutor(Tag {}, 30) {
+        : coro::SerialWebExecutor(Tag {}, 30, 10) {
         ++executorCount;
     }
 
