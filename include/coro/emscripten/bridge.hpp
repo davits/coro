@@ -23,6 +23,10 @@ public:
         : std::runtime_error("")
         , _error(std::move(error)) {}
 
+    const emscripten::val error() const {
+        return _error;
+    }
+
 private:
     emscripten::val _error;
 };

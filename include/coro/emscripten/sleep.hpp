@@ -16,7 +16,8 @@ class CancelableSleepHelper : public ValAwaitable {
 public:
     CancelableSleepHelper(coro::Executor::Ref executor, emscripten::val sleep, StopToken token)
         : ValAwaitable(executor, sleep["promise"])
-        , _stopCallback(token.addStopCallback([sleep]() { sleep.call<void>("cancel"); })) {}
+        , _stopCallback(token.addStopCallback([sleep]() { sleep.call<void>("cancel"); }))
+        , _token(token) {}
 
     CancelableSleepHelper& operator co_await() {
         ValAwaitable::operator co_await();
@@ -24,12 +25,18 @@ public:
     }
 
     emscripten::val await_resume() {
-        _stopCallback.reset();
-        return ValAwaitable::await_resume();
+        try {
+            _stopCallback.reset();
+            return ValAwaitable::await_resume();
+        } catch (const JSError&) {
+            _token.throwIfStopped();
+            throw;
+        }
     }
 
 private:
     Callback::Ref _stopCallback;
+    StopToken _token;
 };
 
 } // namespace detail
