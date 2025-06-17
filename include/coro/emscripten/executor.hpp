@@ -43,6 +43,9 @@ public:
     }
 
 public:
+    using Executor::next;
+    using Executor::schedule;
+
     template <typename R>
     emscripten::val promise(Task<R>&& task) {
         task.handle().promise().enableContextInheritance(false);

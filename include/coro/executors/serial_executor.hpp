@@ -32,6 +32,9 @@ public:
     }
 
 public:
+    using Executor::next;
+    using Executor::schedule;
+
     template <typename R>
     std::future<R> future(Task<R>&& task) {
         std::promise<R> promise;
@@ -60,8 +63,6 @@ public:
         std::future<R> f = future(std::move(task));
         return f.get();
     }
-
-    using Executor::schedule;
 
 protected:
     void schedule(CoroHandle coro) override {
