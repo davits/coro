@@ -32,7 +32,7 @@ public:
         }
     }
 
-    void reject(const std::string_view error) {
+    void reject(const char* error) {
         if (!_reject.isUndefined()) {
             _reject(emscripten::val {error});
             reset();
