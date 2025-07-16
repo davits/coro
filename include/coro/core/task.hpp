@@ -15,6 +15,8 @@ public:
     using Type = R;
     using promise_type = Promise<R>;
 
+    Task() = default;
+
     Task(CoroHandle handle)
         : _handle(std::move(handle)) {}
 
@@ -23,7 +25,7 @@ public:
     Task(const Task&) = delete;
     Task& operator=(const Task&) = delete;
     Task(Task&&) = default;
-    Task& operator=(Task&&) = delete;
+    Task& operator=(Task&&) = default;
 
 public:
     void reset() {
