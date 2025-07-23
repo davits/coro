@@ -10,21 +10,24 @@
 
 namespace coro {
 
+/**
+ * Single threaded serial executor, executing scheduled task on a single thread in a serial manner.
+ * This executor API is thread safe and can be used concurrently from different threads.
+ * The execution itself takes place on a separate thread, so scheduling does not block the scheduling thread unless
+ specifically requested.
+ * The lifetime of each executor is prolonged by tasks scheduled on it, regardless of user holding strong reference to
+ * it. So effectively executor lives as long as it takes to finish all the tasks scheduled on it.
+ * The following is a valid code for this executor:
+ * ```
+ * {
+ *   auto executor = SerialExecutor::create();
+     executor->schedule(someTask());
+ * }
+ * // executor will live on as long as it takes to finish someTask()
+ * ```
+ */
 class SerialExecutor : public Executor {
-protected:
-    struct Tag {};
-
 public:
-    SerialExecutor(Tag) {
-        _state = std::make_shared<RunState>();
-        _runningThread = std::thread([state = _state]() { SerialExecutor::runScheduled(state); });
-    };
-
-    ~SerialExecutor() {
-        _state->executorDestroyed();
-        _runningThread.detach();
-    }
-
     using Ref = std::shared_ptr<SerialExecutor>;
 
     static Ref create() {
@@ -32,9 +35,14 @@ public:
     }
 
 public:
+    // See comments in the base Executor class
     using Executor::next;
     using Executor::schedule;
 
+    /**
+     * Schedule given task and return std::future, which will be satisfied when task is complete,
+     * either with result value of the task or with an exception if there was an error.
+     */
     template <typename R>
     std::future<R> future(Task<R>&& task) {
         std::promise<R> promise;
@@ -75,6 +83,20 @@ protected:
 
     void external(CoroHandle coro) override {
         _state->external(std::move(coro));
+    }
+
+protected:
+    struct Tag {};
+
+public:
+    SerialExecutor(Tag) {
+        _state = std::make_shared<RunState>();
+        _runningThread = std::thread([state = _state]() { SerialExecutor::runScheduled(state); });
+    };
+
+    ~SerialExecutor() {
+        _state->executorDestroyed();
+        _runningThread.detach();
     }
 
 private:

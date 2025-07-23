@@ -52,6 +52,8 @@ struct Awaitable {
             // copy awaiter task context and schedule on the same executor
             taskPromise.executor = awaitingPromise.executor;
             taskPromise.inheritContext(awaitingPromise);
+            // schedule new task via next() to ensure that the call hierarchy has precedence.
+            // This way scheduled tasks will work one by one rather then all at once with intermingled execution order.
             taskPromise.executor->next(_task.handle());
         } else if (taskPromise.executor != awaitingPromise.executor) {
             // mark awaiter as waiting for external execution

@@ -18,34 +18,48 @@ namespace detail {
 extern "C" emscripten::EM_VAL _coro_lib_val_from_cpp_exception();
 } // namespace detail
 
+/**
+ * Single threaded serial executor designed specifically for working in emscripten environment.
+ * This executor API is not a thread safe and should not be used from concurrent worker threads.
+ * The lifetime of each executor is prolonged by tasks scheduled on it, regardless of user holding strong reference to
+ * it. So effectively executor lives as long as it takes to finish all the tasks scheduled on it.
+ * The following is a valid code for this executor:
+ * ```
+ * {
+ *   auto executor = SerialWebExecutor::create();
+     executor->schedule(someTask());
+ * }
+ * // executor will live on as long as it takes to finish someTask()
+ * ```
+ */
 class SerialWebExecutor : public coro::Executor {
-protected:
-    struct Tag {};
-
 public:
-    SerialWebExecutor(Tag, uint32_t maxBlockingTime, uint32_t checkNthOperation) {
-        _state = std::make_shared<RunState>();
-        _state->maxBlockingTime = maxBlockingTime;
-        _state->checkNthOperation = checkNthOperation;
-        _state->runner = runScheduled(_state);
-    }
-
     using Ref = std::shared_ptr<SerialWebExecutor>;
-    static Ref create(uint32_t maxBlockingTime = 1000 / 30,
-                      uint32_t checkNthOperation = std::numeric_limits<uint32_t>::max()) {
+
+    /**
+     * @brief Create new SerialWebExecutor.
+     * @param maxBlockingTime Specify maximum blocking time of the main thread in milliseconds. The executor will try to
+     * not exceed maxBlockingTime by periodically checking elapsed time since the last wakeup and defer the execution of
+     * the consequent operations to the next event loop sweep when the main thread has been blocked for more time then
+     * allowed.
+     * @param checkNthOperation Specify how often executor should check for the elapsed time. This is the count of
+     * executed operations/coroutines after which the elapsed time will be checked. This argument exists because it is
+     * quite slow to get time in the wasm environment and it is not feasable to check time after each operation.
+     */
+    static Ref create(uint32_t maxBlockingTime = 1000 / 30, uint32_t checkNthOperation = 10) {
         return std::make_shared<SerialWebExecutor>(Tag {}, maxBlockingTime, checkNthOperation);
     }
 
-    SerialWebExecutor(const SerialWebExecutor&) = delete;
-
-    ~SerialWebExecutor() {
-        _state->executorDestroyed();
-    }
-
 public:
+    // See the comments in the Executor base class.
     using Executor::next;
     using Executor::schedule;
 
+    /**
+     * Enqueues task on the executor and returns JS promise wrapped into the emscripten::val.
+     * The promise will be fullfilled when the task is finished completely, or rejected if there has been an error
+     * during the execution.
+     */
     template <typename R>
     emscripten::val promise(Task<R>&& task) {
         task.handle().promise().enableContextInheritance(false);
@@ -80,6 +94,23 @@ protected:
 
     void external(CoroHandle handle) override {
         _state->external(std::move(handle));
+    }
+
+protected:
+    struct Tag {};
+
+public:
+    SerialWebExecutor(Tag, uint32_t maxBlockingTime, uint32_t checkNthOperation) {
+        _state = std::make_shared<RunState>();
+        _state->maxBlockingTime = maxBlockingTime;
+        _state->checkNthOperation = checkNthOperation;
+        _state->runner = runScheduled(_state);
+    }
+
+    SerialWebExecutor(const SerialWebExecutor&) = delete;
+
+    ~SerialWebExecutor() {
+        _state->executorDestroyed();
     }
 
 private:

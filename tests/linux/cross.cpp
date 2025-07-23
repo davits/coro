@@ -49,9 +49,7 @@ coro::Task<int> contextChecker(coro::StopToken expectedToken, coro::UserData::Re
     coro::StopSource stopSource;
     auto newToken = stopSource.token();
     auto newData = std::make_shared<CustomData>();
-    auto task = innerContextChecker(newToken, newData);
-    task.setStopToken(newToken);
-    task.setUserData(newData);
+    auto task = innerContextChecker(newToken, newData).setStopToken(newToken).setUserData(newData);
     int r = co_await executor->schedule(std::move(task));
     co_return r;
 }

@@ -3,18 +3,23 @@
 #include "promise.hpp"
 #include "handle.hpp"
 
-#include "../detail/utils.hpp"
-
 namespace coro {
 
 class Executor;
 
+/**
+ * Asynchronous task wrapping underlying C++ coroutine.
+ * Task is designed to be a return value from the C++ coroutine.
+ * Task is lazy, meaning it needs to be scheduled on executor to start working. It can be scheduled explicitly via the
+ * executor functions or it will be scheduled automatically when co_await(ed) from another task.
+ */
 template <typename R>
 class Task {
 public:
     using Type = R;
     using promise_type = Promise<R>;
 
+public:
     Task() = default;
 
     Task(CoroHandle handle)
@@ -36,31 +41,41 @@ public:
         return promise().finished();
     }
 
+    explicit operator bool() const {
+        return static_cast<bool>(_handle);
+    }
+
 public:
     const StopToken& stopToken() const {
         return promise().context.stopToken;
     }
 
-    void setStopToken(StopToken token) {
+    void setStopToken(StopToken token) & {
         auto& p = promise();
         p.context.stopToken = std::move(token);
+    }
+
+    Task&& setStopToken(StopToken token) && {
+        auto& p = promise();
+        p.context.stopToken = std::move(token);
+        return std::move(*this);
     }
 
     const UserData::Ref& userData() const {
         return promise().context.userData;
     }
 
-    void setUserData(UserData::Ref userData) {
+    void setUserData(UserData::Ref userData) & {
         promise().context.userData = std::move(userData);
+    }
+
+    Task&& setUserData(UserData::Ref userData) && {
+        promise().context.userData = std::move(userData);
+        return std::move(*this);
     }
 
     CoroHandle handle() const {
         return _handle;
-    }
-
-    template <typename Callable>
-    void then(Callable&& callable) {
-        promise().then(std::forward<Callable>(callable));
     }
 
 private:

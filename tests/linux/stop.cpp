@@ -40,13 +40,8 @@ TEST(Stop, Normal) {
     task1.setStopToken(ss1.token());
     auto future1 = executor->future(std::move(task1));
 
-    auto task2 = simple();
-    task2.setStopToken(ss2.token());
-    auto future2 = executor->future(std::move(task2));
-
-    auto task3 = simple();
-    task3.setStopToken(ss3.token());
-    auto future3 = executor->future(std::move(task3));
+    auto future2 = executor->future(simple().setStopToken(ss2.token()));
+    auto future3 = executor->future(simple().setStopToken(ss3.token()));
 
     ss1.requestStop();
     ss2.requestStop();

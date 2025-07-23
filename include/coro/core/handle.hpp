@@ -24,29 +24,11 @@ public:
     /**
      * Create CoroHandle wrapper for fully typed coroutine handle.
      * This function is not thread safe, in a sense that one shouldn't create CoroHandle for a coroutine which is being
-     * actively destroyed on another thread. So this function should be called only from await_suspend() like places
-     * for the context coroutine ensuring that coroutine lives while this function is being executed.
+     * actively destroyed on another thread. So this function should be called only from await_suspend() or from
+     * similar places to ensure that coroutine lives while this function is being executed.
      */
     template <typename Promise>
     static CoroHandle fromTypedHandle(std::coroutine_handle<Promise> handle);
-
-private:
-    CoroHandle(handle_t handle, PromiseBase* promise);
-
-public:
-    CoroHandle() = default;
-
-    CoroHandle(std::nullptr_t);
-
-    ~CoroHandle();
-
-    CoroHandle(const CoroHandle& other);
-
-    CoroHandle(CoroHandle&& other);
-
-    CoroHandle& operator=(const CoroHandle& other);
-
-    CoroHandle& operator=(CoroHandle&& other);
 
     /// Resets state of the object as if it was destroyed, decrements coroutine handle reference counter
     /// and destroys coroutine frame if it has reached 0.
@@ -77,6 +59,24 @@ public:
     bool operator==(const CoroHandle& other) const noexcept;
 
     std::strong_ordering operator<=>(const CoroHandle& other) const noexcept;
+
+public:
+    CoroHandle() = default;
+
+    CoroHandle(std::nullptr_t);
+
+    ~CoroHandle();
+
+    CoroHandle(const CoroHandle& other);
+
+    CoroHandle(CoroHandle&& other);
+
+    CoroHandle& operator=(const CoroHandle& other);
+
+    CoroHandle& operator=(CoroHandle&& other);
+
+private:
+    CoroHandle(handle_t handle, PromiseBase* promise);
 
 private:
     handle_t _handle = nullptr;

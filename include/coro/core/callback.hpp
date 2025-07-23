@@ -11,13 +11,7 @@ public:
     using WeakRef = std::weak_ptr<Callback>;
     using Func = std::function<void()>;
 
-private:
-    struct Tag {};
-
 public:
-    Callback(Tag, Func&& function)
-        : _function(std::move(function)) {}
-
     static Ref create(Func function) {
         return std::make_shared<Callback>(Tag {}, std::move(function));
     }
@@ -31,6 +25,13 @@ public:
             _function = Func {};
         }
     }
+
+private:
+    struct Tag {};
+
+public:
+    Callback(Tag, Func&& function)
+        : _function(std::move(function)) {}
 
 private:
     Func _function;

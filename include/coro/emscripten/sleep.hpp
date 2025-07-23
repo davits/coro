@@ -52,6 +52,9 @@ struct SleepAwaitable : public emscripten::val {
     }
 };
 
+/// @brief Asynchronous sleeper for the emscripten environment
+/// co_await-ing sleep result will cause coroutine sleep for the specified amount of time.
+/// @param ms Time to sleep in milliseconds.
 inline SleepAwaitable sleep(uint32_t ms) {
     auto sleep = emscripten::val::take_ownership(detail::_coro_lib_sleep(static_cast<int32_t>(ms)));
     return {std::move(sleep)};
