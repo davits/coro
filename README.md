@@ -168,7 +168,9 @@ TEST(coro, cancellation) {
 ### Emscripten Integration
 
 ```cpp
+#include <coro/coro.hpp>
 #include <coro/emscripten/bridge.hpp>
+#include <coro/emscripten/executor.hpp>
 
 // emscripten coroutine
 emscripten::val fetchJson(std::string url) {
@@ -178,9 +180,36 @@ emscripten::val fetchJson(std::string url) {
     co_return co_await response.call<val>("json");
 }
 
-coro::Task<void> work() {
+coro::Task<std::string> processJson() {
+    // seamless co_await for emscripten::val coroutine, or JS promise wrapped into emscripten::val
     emscripten::val jsonVal = co_await fetchJson("https://url");
     auto json = jsonVal.as<std::string>();
-    //process json ...
+    //process and modify json ...
+    co_await coro::sleep(1000); // sleep for 1 second to emulate work
+    co_return json;
 }
+
+emscripten::val doWork() {
+    auto executor = coro::SerialWebExecutor::create();
+    // Note that we are scheduling task on the local executor which goes out of scope when this function returns,
+    // but no worries, it will be automatically kept alive while the task is being executed.
+    return executor->promise(processJson());
+}
+
+EMSCRIPTEN_BINDINGS(Sample) {
+    // After binding function in the JS, we get function which return JS promise object which can be await(ed)
+    emscripten::function("doWork", &doWork);
+}
+```
+
+```js
+// Sample usage on the JavaScript side
+wasmModule
+  .doWork()
+  .then((value) =>
+    console.log(`Finished fetch and process on C++ side with result: ${value}`)
+  );
+// or
+const value = await wasmModule.doWork();
+console.log(`Finished fetch and process on C++ side with result: ${value}`);
 ```
