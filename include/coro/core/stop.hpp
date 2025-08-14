@@ -2,9 +2,11 @@
 
 #include "callback.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <vector>
 
 namespace coro {
