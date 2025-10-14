@@ -65,6 +65,11 @@ struct Awaitable {
     Return await_resume() {
         // eagerly destroy completed task at the end of the scope
         detail::AtExit exit {[this]() noexcept { _task.reset(); }};
+
+        // throw if stop was requested
+        auto& taskPromise = _task.promise();
+        taskPromise.continuation.throwIfStopped();
+
         if constexpr (std::is_move_constructible_v<Return>) {
             return std::move(_task.promise()).value();
         } else {

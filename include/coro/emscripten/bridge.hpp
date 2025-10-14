@@ -14,7 +14,7 @@
 namespace coro {
 
 namespace detail {
-extern "C" void _coro_lib_await_promise(emscripten::EM_VAL promiseHandle, void* awaiter);
+extern "C" emscripten::EM_VAL _coro_lib_await_promise(emscripten::EM_VAL promiseHandle, void* awaiter);
 } // namespace detail
 
 class JSError : public std::runtime_error {
@@ -32,12 +32,14 @@ private:
 };
 
 struct ValAwaitable {
-    ValAwaitable(coro::Executor::Ref executor, emscripten::val&& val)
+    ValAwaitable(emscripten::val&& val, const PromiseBase& promise)
         : _promise(std::move(val))
-        , _executor(std::move(executor)) {}
+        , _executor(std::move(promise.executor))
+        , _stopToken(promise.context.stopToken) {}
 
     ValAwaitable& operator co_await() {
-        detail::_coro_lib_await_promise(_promise.as_handle(), this);
+        auto controllerHandle = detail::_coro_lib_await_promise(_promise.as_handle(), this);
+        _controller = emscripten::val::take_ownership(controllerHandle);
         return *this;
     }
 
@@ -53,6 +55,10 @@ struct ValAwaitable {
     }
 
     emscripten::val await_resume() {
+        if (_stopToken.stopRequested()) {
+            _controller.call<void>("abort");
+            _stopToken.throwException();
+        }
         if (_error) {
             throw JSError(std::move(_result));
         }
@@ -78,8 +84,10 @@ struct ValAwaitable {
 
 private:
     emscripten::val _promise;
+    emscripten::val _controller;
     emscripten::val _result;
     coro::Executor::Ref _executor = nullptr;
+    StopToken _stopToken;
     CoroHandle _continuation;
     bool _ready = false;
     bool _error = false;
@@ -89,7 +97,7 @@ private:
 template <>
 struct await_ready_trait<emscripten::val> {
     static ValAwaitable await_transform(const PromiseBase& promise, emscripten::val awaitable) {
-        return ValAwaitable {promise.executor, std::move(awaitable)};
+        return ValAwaitable {std::move(awaitable), promise};
     }
 };
 

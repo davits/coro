@@ -86,6 +86,10 @@ inline void CoroHandle::resume() {
     _handle.resume();
 }
 
+inline void CoroHandle::throwIfStopped() {
+    promise().context.stopToken.throwIfStopped();
+}
+
 inline CoroHandle::operator bool() const {
     return static_cast<bool>(_handle);
 }

@@ -102,9 +102,10 @@ class MutexAwaitable {
 private:
     friend await_ready_trait<Mutex>;
 
-    MutexAwaitable(Mutex* mutex, Executor::Ref executor)
+    MutexAwaitable(Mutex* mutex, const PromiseBase& promise)
         : _mutex(mutex)
-        , _executor(std::move(executor)) {}
+        , _executor(promise.executor)
+        , _stopToken(promise.context.stopToken) {}
 
 public:
     bool await_ready() noexcept {
@@ -121,8 +122,10 @@ public:
         return queued;
     }
 
-    ScopedLock await_resume() noexcept {
-        return ScopedLock {_mutex};
+    ScopedLock await_resume() {
+        ScopedLock lock {_mutex};
+        _stopToken.throwIfStopped();
+        return lock;
     }
 
 private:
@@ -135,6 +138,7 @@ private:
     Mutex* _mutex;
     Executor::Ref _executor;
     CoroHandle _continuation;
+    StopToken _stopToken;
 };
 
 } // namespace detail
@@ -154,7 +158,7 @@ inline void Mutex::unlock() {
 template <>
 struct await_ready_trait<Mutex> {
     static detail::MutexAwaitable await_transform(const PromiseBase& promise, Mutex& mutex) {
-        return detail::MutexAwaitable {&mutex, promise.executor};
+        return detail::MutexAwaitable {&mutex, promise};
     }
 };
 

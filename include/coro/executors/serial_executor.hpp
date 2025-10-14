@@ -134,7 +134,8 @@ private:
 
         void external(CoroHandle&& handle) {
             auto& promise = handle.promise();
-            auto callback = Callback::create([handle]() mutable { handle.promise().skipExecution(); });
+            auto callback = Callback::create(
+                [handle = handle]() mutable { handle.promise().executor->schedule(std::move(handle)); });
             {
                 std::scoped_lock lock {mutex};
                 externals.emplace(std::move(handle), callback);
@@ -172,7 +173,9 @@ private:
             CoroHandle task = state->tasks.popBack().value();
             // release lock and give a chance to schedule while task is being executed
             lock.unlock();
-            if (task.promise().skipExecution()) [[unlikely]] {
+            // this can happen during cancellation, when coroutine waiting for external event
+            // is cancelled and the external event is fired at the same time.
+            if (task.promise().finished()) [[unlikely]] {
                 continue;
             }
             task.resume();

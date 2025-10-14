@@ -87,7 +87,8 @@ public:
         return true;
     }
 
-    T await_resume() noexcept {
+    T await_resume() {
+        _continuation.throwIfStopped();
         return std::move(_data).value();
     }
 

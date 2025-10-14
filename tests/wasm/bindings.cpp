@@ -1,4 +1,5 @@
 #include <emscripten/bind.h>
+#include <emscripten/emscripten.h>
 
 // for testing purposes
 #define private protected
@@ -103,6 +104,61 @@ coro::Task<int> testAbortControllerTimeout() {
     co_return result.as<int>();
 }
 
+// Create mock promise which will be resolved after 100ms
+EM_JS(emscripten::EM_VAL, customPromiseImpl, (), {
+    const promise = new Promise((resolve) => {
+        setTimeout(() => {
+            resolve();
+        }, 100);
+    });
+    return Emval.toHandle(promise);
+});
+
+emscripten::val customPromise() {
+    return emscripten::val::take_ownership(customPromiseImpl());
+}
+
+template <size_t N>
+coro::Task<void> someTask(emscripten::val promise) {
+    co_await someTask<N - 1>(promise);
+}
+
+bool thrown = false;
+template <>
+coro::Task<void> someTask<0>(emscripten::val promise) {
+    try {
+        co_await promise;
+    } catch (const coro::StopError&) {
+        thrown = true;
+    }
+}
+
+coro::Task<void> testCustomPromiseCancellation() {
+    emscripten::val promise = customPromise();
+    coro::StopSource stop;
+
+    auto executor = coro::SerialWebExecutor::create();
+    auto task = executor->promise(someTask<5>(promise).setStopToken(stop.token()));
+
+    co_await coro::sleep(50);
+    stop.requestStop();
+
+    bool except = false;
+    try {
+        co_await task;
+    } catch (...) {
+        except = true;
+    }
+    if (!thrown || !except) {
+        throw std::runtime_error {"Exception was not thrown"};
+    }
+    executor.reset();
+    // The promise was disconnected from coroutines during cancellation via stop token
+    // awaiting for it here to make sure that promise resolve does not try to resolve now
+    // deleted coroutine frame.
+    co_await promise;
+}
+
 EMSCRIPTEN_BINDINGS(Test) {
     emscripten::function("sleepyTask", +[]() { return coro::taskPromise(sleepy<5>(false)); });
     emscripten::function("failingTask", +[]() { return coro::taskPromise(sleepy<5>(true)); });
@@ -123,4 +179,6 @@ EMSCRIPTEN_BINDINGS(Test) {
     emscripten::function("testAbortController", +[]() { return coro::taskPromise(testAbortController()); });
     emscripten::function(
         "testAbortControllerTimeout", +[]() { return coro::taskPromise(testAbortControllerTimeout()); });
+    emscripten::function(
+        "testCustomPromiseCancellation", +[]() { return coro::taskPromise(testCustomPromiseCancellation()); });
 }
