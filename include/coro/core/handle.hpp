@@ -53,6 +53,9 @@ public:
     void resume();
 
 public:
+    void throwIfStopped();
+
+public:
     /// Returns whether stored handle is non null.
     explicit operator bool() const;
 

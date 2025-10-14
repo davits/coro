@@ -148,7 +148,7 @@ private:
 
         void external(CoroHandle&& handle) {
             auto& promise = handle.promise();
-            auto callback = Callback::create([handle]() mutable { handle.promise().skipExecution(); });
+            auto callback = Callback::create([handle]() mutable { handle.promise().executor->schedule(handle); });
             externals.emplace(std::move(handle), callback);
             promise.context.stopToken.addStopCallback(callback);
         }
@@ -174,7 +174,7 @@ private:
                 }
                 continue;
             }
-            if (next.promise().skipExecution()) [[unlikely]] {
+            if (next.promise().finished()) [[unlikely]] {
                 continue;
             }
             ++opCount;

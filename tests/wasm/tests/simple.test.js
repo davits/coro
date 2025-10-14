@@ -58,3 +58,7 @@ test("AbortController", async () => {
     expect(await coro.testAbortController()).toBe(42);
     expect(await coro.testAbortControllerTimeout()).toBe(42);
 })
+
+test("CustomPromiseCancellation", async () => {
+    await coro.testCustomPromiseCancellation();
+})

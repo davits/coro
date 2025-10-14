@@ -14,10 +14,10 @@ extern "C" emscripten::EM_VAL _coro_lib_sleep(int32_t ms);
 // This class ensures that sleep works in the coro::Task coroutine context
 class CancelableSleepHelper : public ValAwaitable {
 public:
-    CancelableSleepHelper(coro::Executor::Ref executor, emscripten::val sleep, StopToken token)
-        : ValAwaitable(executor, sleep["promise"])
-        , _stopCallback(token.addStopCallback([sleep]() { sleep.call<void>("cancel"); }))
-        , _token(token) {}
+    CancelableSleepHelper(emscripten::val sleep, const PromiseBase& promise)
+        : ValAwaitable(sleep["promise"], promise)
+        , _sleep(sleep)
+        , _token(promise.context.stopToken) {}
 
     CancelableSleepHelper& operator co_await() {
         ValAwaitable::operator co_await();
@@ -25,17 +25,14 @@ public:
     }
 
     emscripten::val await_resume() {
-        try {
-            _stopCallback.reset();
-            return ValAwaitable::await_resume();
-        } catch (const JSError&) {
-            _token.throwIfStopped();
-            throw;
+        if (_token.stopRequested()) {
+            _sleep.call<void>("cancel");
         }
+        return ValAwaitable::await_resume();
     }
 
 private:
-    Callback::Ref _stopCallback;
+    emscripten::val _sleep;
     StopToken _token;
 };
 
@@ -63,7 +60,7 @@ inline SleepAwaitable sleep(uint32_t ms) {
 template <>
 struct await_ready_trait<SleepAwaitable> {
     static detail::CancelableSleepHelper await_transform(const PromiseBase& promise, SleepAwaitable&& awaitable) {
-        return {promise.executor, std::move(awaitable), promise.context.stopToken};
+        return {std::move(awaitable), promise};
     }
 };
 

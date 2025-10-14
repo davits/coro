@@ -116,5 +116,8 @@ StatementMacros:
   - QT_REQUIRE_VERSION
 TabWidth:        4
 UseTab:          Never
+WhitespaceSensitiveMacros:
+ - EM_ASM
+ - EM_JS
 ...
 

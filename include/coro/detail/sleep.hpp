@@ -87,22 +87,26 @@ public:
     template <typename Promise>
     void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
         static detail::TimedScheduler scheduler;
-        auto handle = CoroHandle::fromTypedHandle(continuation);
-        auto& promise = handle.promise();
-        promise.executor->external(handle);
-        _callback = Callback::create([handle = std::move(handle)]() {
+        _continuation = CoroHandle::fromTypedHandle(continuation);
+        auto& promise = _continuation.promise();
+        promise.executor->external(_continuation);
+        _callback = Callback::create([handle = _continuation]() {
             auto& promise = handle.promise();
             promise.executor->schedule(std::move(handle));
         });
         scheduler.timeout(std::chrono::milliseconds {_sleep}, _callback);
-        // TODO: reset timer callback and schedule continuation on stop signal.
     }
 
-    void await_resume() noexcept {
-        _callback.reset();
+    void await_resume() {
+        detail::AtExit exit {[this]() noexcept {
+            _callback.reset();
+            _continuation.reset();
+        }};
+        _continuation.throwIfStopped();
     }
 
 private:
+    CoroHandle _continuation;
     Callback::Ref _callback;
     uint32_t _sleep;
 };

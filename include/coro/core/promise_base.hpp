@@ -26,12 +26,6 @@ struct TaskContext {
 
 class PromiseBase {
 public:
-    enum class ExecutionState {
-        Normal,
-        Cancelling,
-        Finished,
-    };
-
     enum class ValueState {
         Uninitialized,
         Value,
@@ -53,7 +47,7 @@ protected:
 
 private:
     mutable std::mutex _mutex;
-    ExecutionState _executionState = ExecutionState::Normal;
+    bool _finished = false;
     bool _inheritContext = true;
 
 public:
@@ -108,29 +102,14 @@ public:
     void set_continuation(CoroHandle&& cont) {
         std::scoped_lock lock {_mutex};
         continuation = std::move(cont);
-        if (_executionState == ExecutionState::Finished) {
+        if (_finished) {
             schedule_continuation();
         }
     }
 
     bool finished() const {
         std::scoped_lock lock {_mutex};
-        return _executionState == ExecutionState::Finished;
-    }
-
-    bool skipExecution() {
-        std::scoped_lock lock {_mutex};
-        if (_executionState == ExecutionState::Finished) {
-            return true;
-        }
-        if (context.stopToken.stopRequested() && _executionState != ExecutionState::Cancelling) [[unlikely]] {
-            emplace_exception(context.stopToken.exception());
-            _executionState = ExecutionState::Cancelling;
-            schedule_continuation();
-            _executionState = ExecutionState::Finished;
-            return true;
-        }
-        return false;
+        return _finished;
     }
 
     void enableContextInheritance(bool inherit) {
@@ -147,19 +126,16 @@ private:
     void on_finished() {
         std::scoped_lock lock {_mutex};
         schedule_continuation();
-        _executionState = ExecutionState::Finished;
+        _finished = true;
     }
 
     void schedule_continuation() {
         if (continuation) {
-            if (_executionState == ExecutionState::Cancelling) {
-                continuation.promise()._executionState = ExecutionState::Cancelling;
-            }
             auto continuationExecutor = continuation.promise().executor;
             if (continuationExecutor == executor) {
-                continuationExecutor->next(std::move(continuation));
+                continuationExecutor->next(continuation);
             } else {
-                continuationExecutor->schedule(std::move(continuation));
+                continuationExecutor->schedule(continuation);
             }
         }
     }

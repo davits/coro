@@ -90,8 +90,12 @@ public:
 
     void throwIfStopped() const {
         if (stopRequested()) {
-            std::rethrow_exception(exception());
+            throwException();
         }
+    }
+
+    void throwException() const {
+        std::rethrow_exception(exception());
     }
 
     std::exception_ptr exception() const {

@@ -10,29 +10,43 @@ addToLibrary({
     },
 
     _coro_lib_await_promise__deps: ['$Emval', '_coro_lib_awaiter_resolve', '_coro_lib_awaiter_reject'],
-    _coro_lib_await_promise__sig: 'vpp',
+    _coro_lib_await_promise__sig: 'ppp',
     _coro_lib_await_promise: (promiseHandle, awaiterPtr) => {
         const promise = Emval.toValue(promiseHandle);
+        const controller = new AbortController()
+        const signal = controller.signal
         Promise.resolve(promise).then(
-            result => __coro_lib_awaiter_resolve(awaiterPtr, Emval.toHandle(result)),
-            error => __coro_lib_awaiter_reject(awaiterPtr, Emval.toHandle(error))
+            result => {
+                if (!signal.aborted) {
+                    __coro_lib_awaiter_resolve(awaiterPtr, Emval.toHandle(result));
+                }
+            },
+            error => {
+                if (!signal.aborted) {
+                    __coro_lib_awaiter_reject(awaiterPtr, Emval.toHandle(error));
+                }
+            }
         );
+        return Emval.toHandle(controller);
     },
 
     _coro_lib_sleep__deps: ['$Emval'],
     _coro_lib_sleep__sig: 'pi',
     _coro_lib_sleep: (time) => {
-        let obj = {};
-        obj.promise = new Promise((resolve, reject) => {
-            const id = setTimeout(() => {
-                obj.cancel = () => {};
+        const obj = {
+            id: null,
+            cancel() {
+                if (this.id) {
+                    clearTimeout(this.id);
+                    this.id = null;
+                }
+            },
+        };
+        obj.promise = new Promise(resolve => {
+            obj.id = setTimeout(() => {
                 resolve();
+                obj.id = null;
             }, time);
-            obj.cancel = () => {
-                clearTimeout(id);
-                obj.cancel = () => {};
-                reject();
-            };
         });
         return Emval.toHandle(obj);
     },
