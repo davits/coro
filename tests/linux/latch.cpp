@@ -35,6 +35,19 @@ TEST(Latch, Simple) {
     EXPECT_EQ(result, 42);
 }
 
+TEST(Latch, Cancellation) {
+    coro::Latch latch {1};
+    auto executor = coro::SerialExecutor::create();
+    auto stop = coro::StopSource {};
+    auto future = executor->future(consumer(latch).setStopToken(stop.token()));
+
+    using namespace std::chrono_literals;
+    EXPECT_EQ(future.wait_for(100ms), std::future_status::timeout);
+
+    stop.requestStop();
+    EXPECT_THROW(future.get(), coro::StopError);
+}
+
 TEST(Latch, CrossExecutor) {
     coro::Latch latch {1};
     auto executor1 = coro::SerialExecutor::create();

@@ -152,7 +152,11 @@ coro::Task<void> testCustomPromiseCancellation() {
     if (!thrown || !except) {
         throw std::runtime_error {"Exception was not thrown"};
     }
+    std::weak_ptr<coro::SerialWebExecutor> weakExecutor = executor;
     executor.reset();
+    if (weakExecutor.lock()) {
+        throw std::runtime_error {"Executor was not destroyed properly"};
+    }
     // The promise was disconnected from coroutines during cancellation via stop token
     // awaiting for it here to make sure that promise resolve does not try to resolve now
     // deleted coroutine frame.

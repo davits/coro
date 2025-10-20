@@ -4,6 +4,7 @@
 #include <mutex>
 #include <queue>
 #include <stack>
+#include <type_traits>
 
 namespace coro::detail {
 
@@ -44,6 +45,18 @@ public:
 
     decltype(auto) end() {
         return _deque.end();
+    }
+
+    void erase(const std::remove_pointer_t<T>* el)
+        requires std::is_pointer_v<T>
+    {
+        std::erase(_deque, el);
+    }
+
+    void erase(const T& el)
+        requires(!std::is_pointer_v<T>)
+    {
+        std::erase(_deque, el);
     }
 
 private:

@@ -51,13 +51,18 @@ private:
         if (_count <= 0) {
             return false;
         }
-        _awaiters.push(awaitable);
+        _awaiters.pushBack(awaitable);
         return true;
+    }
+
+    void remove(const detail::LatchAwaitable* awaitable) {
+        std::scoped_lock lock {_mutex};
+        _awaiters.erase(awaitable);
     }
 
 private:
     std::ptrdiff_t _count;
-    detail::Queue<detail::LatchAwaitable*> _awaiters;
+    detail::Deque<detail::LatchAwaitable*> _awaiters;
     mutable std::mutex _mutex;
 };
 
@@ -65,9 +70,10 @@ namespace detail {
 class LatchAwaitable {
 private:
     friend await_ready_trait<Latch>;
-    LatchAwaitable(Latch* latch, Executor::Ref executor)
+    LatchAwaitable(Latch* latch, const PromiseBase& promise)
         : _latch(latch)
-        , _executor(std::move(executor)) {}
+        , _executor(promise.executor)
+        , _stopToken(promise.context.stopToken) {}
 
 public:
     bool await_ready() noexcept {
@@ -84,7 +90,12 @@ public:
         return queued;
     }
 
-    void await_resume() noexcept {}
+    void await_resume() {
+        if (_stopToken.stopRequested()) {
+            _latch->remove(this);
+            _stopToken.throwException();
+        }
+    }
 
 private:
     friend class ::coro::Latch;
@@ -96,6 +107,7 @@ private:
     Latch* _latch;
     Executor::Ref _executor;
     CoroHandle _continuation;
+    StopToken _stopToken;
 };
 
 } // namespace detail
@@ -105,7 +117,7 @@ inline void Latch::count_down(std::ptrdiff_t n) {
     _count -= n;
     if (_count <= 0) {
         while (true) {
-            auto next = _awaiters.pop().value_or(nullptr);
+            auto next = _awaiters.popFront().value_or(nullptr);
             if (!next) break;
             next->latchSignaled();
         }
@@ -115,7 +127,7 @@ inline void Latch::count_down(std::ptrdiff_t n) {
 template <>
 struct await_ready_trait<Latch> {
     static detail::LatchAwaitable await_transform(const PromiseBase& promise, Latch& latch) {
-        return detail::LatchAwaitable {&latch, promise.executor};
+        return detail::LatchAwaitable {&latch, promise};
     }
 };
 
