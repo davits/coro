@@ -1,4 +1,5 @@
 #include <coro/coro.hpp>
+#include <coro/sleep.hpp>
 #include <coro/executors/serial_executor.hpp>
 
 #include <gtest/gtest.h>
@@ -27,6 +28,55 @@ TEST(Simple, Builtin) {
     auto e = coro::SerialExecutor::create();
     auto d = e->syncWait(simple());
     EXPECT_DOUBLE_EQ(d, 0.5);
+}
+
+coro::Task<int> calculate() {
+    co_await coro::sleep(10);
+    co_return 42;
+}
+
+coro::TaskOrValue<int> cachedCalculation(bool useCache) {
+    if (useCache) {
+        return 21;
+    }
+    return calculate();
+}
+
+coro::Task<int> testTaskOrValue(bool useCache) {
+    co_return co_await cachedCalculation(useCache);
+}
+
+size_t calculateVoidCounter = 0;
+size_t calculateVoidCacheCounter = 0;
+
+coro::Task<void> calculateVoid() {
+    ++calculateVoidCounter;
+    co_await coro::sleep(10);
+}
+
+coro::TaskOrValue<void> cachedVoidCalculation(bool useCache) {
+    if (useCache) {
+        ++calculateVoidCacheCounter;
+        return {};
+    }
+    return calculateVoid();
+}
+
+coro::Task<void> testTaskOrValueVoid(bool useCache) {
+    co_await cachedVoidCalculation(useCache);
+}
+
+TEST(Simple, TaskOrValue) {
+    auto e = coro::SerialExecutor::create();
+    EXPECT_EQ(e->syncWait(testTaskOrValue(true)), 21);
+    EXPECT_EQ(e->syncWait(testTaskOrValue(false)), 42);
+
+    e->syncWait(testTaskOrValueVoid(false));
+    EXPECT_EQ(calculateVoidCounter, 1);
+    EXPECT_EQ(calculateVoidCacheCounter, 0);
+    e->syncWait(testTaskOrValueVoid(true));
+    EXPECT_EQ(calculateVoidCounter, 1);
+    EXPECT_EQ(calculateVoidCacheCounter, 1);
 }
 
 struct MyError : std::runtime_error {

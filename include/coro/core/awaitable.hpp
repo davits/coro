@@ -29,6 +29,18 @@ struct ReadyAwaitable {
     }
 };
 
+template <>
+struct ReadyAwaitable<void> {
+    ReadyAwaitable() {}
+
+    bool await_ready() noexcept {
+        return true;
+    }
+    void await_suspend(std::coroutine_handle<>) noexcept {}
+
+    void await_resume() noexcept {}
+};
+
 template <typename Task>
 struct Awaitable {
     using Return = Task::Type;
@@ -37,6 +49,8 @@ struct Awaitable {
         : _task(std::move(task)) {}
 
     Awaitable(Awaitable&&) = default;
+
+    Awaitable& operator=(Awaitable&&) = default;
 
     bool await_ready() const noexcept {
         return false;
