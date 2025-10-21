@@ -3,6 +3,8 @@
 #include "../core/task.hpp"
 #include "../core/awaitable.hpp"
 
+#include <variant>
+
 namespace coro {
 
 namespace detail {
