@@ -1,107 +1,129 @@
 #pragma once
 
-#include "../core/promise_base.hpp"
+#include "../core/executor.hpp"
 #include "../core/handle.hpp"
 #include "../core/handle.inl.hpp"
+#include "../core/promise_base.hpp"
 
 #include <dlfcn.h>
 #include <emscripten/emscripten.h>
+
+#include <memory>
 #include <string>
 
 namespace coro {
 
 namespace detail {
 
-void onEmscriptenDlopenSuccess(void* userData, void* handle);
-void onEmscriptenDlopenError(void* userData);
+struct DlopenInfo {
+    std::string path;
+    int flags;
+};
 
-} // namespace detail
+void onDlopenSuccess(void* userData, void* handle);
+void onDlopenError(void* userData);
 
-struct DlopenResult {
-    void* handle = nullptr;
-    bool success = false;
-    std::string url;
-    std::string errorMessage;
+class DlopenAwaitable;
 
-    DlopenResult() = default;
-    DlopenResult(void* h, bool s, std::string u) 
-        : handle(h), success(s), url(std::move(u)) {}
-    DlopenResult(void* h, bool s, std::string u, std::string err) 
-        : handle(h), success(s), url(std::move(u)), errorMessage(std::move(err)) {}
+struct DlopenContext {
+    DlopenAwaitable* awaitable;
+    bool cancelled;
+
+    DlopenContext(DlopenAwaitable* a)
+        : awaitable(a)
+        , cancelled(false) {}
 };
 
 class DlopenAwaitable {
 public:
-    DlopenAwaitable(coro::Executor::Ref executor, std::string url, int flags)
-        : _executor(std::move(executor))
-        , _url(std::move(url))
-        , _flags(flags) {}
+    DlopenAwaitable(const PromiseBase& promise, DlopenInfo&& info)
+        : _executor(promise.executor)
+        , _stopToken(promise.context.stopToken)
+        , _info(std::move(info)) {}
+
+    DlopenAwaitable& operator co_await() {
+        // emscripten_dlopen can fire success/error callbacks in place if the requested library has already been opened.
+        // so we use operator co_await() to launch it, so if that is the case we can detect it and
+        // not suspend awaiting coroutine unnecessarily
+        _context = new DlopenContext(this);
+        emscripten_dlopen(_info.path.c_str(), _info.flags, _context, onDlopenSuccess, onDlopenError);
+        return *this;
+    }
 
     bool await_ready() noexcept {
-        return false;
+        return _ready;
     }
 
     template <typename Promise>
     void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
         _continuation = CoroHandle::fromTypedHandle(continuation);
-        auto& promise = _continuation.promise();
-        promise.executor->external(_continuation);
-
-        emscripten_dlopen(_url.c_str(), _flags, this, 
-                         detail::onEmscriptenDlopenSuccess, 
-                         detail::onEmscriptenDlopenError);
+        _executor->external(_continuation);
+        _notifiedExecutor = true;
     }
 
-    DlopenResult await_resume() {
-        return std::move(_result);
+    void* await_resume() {
+        if (_stopToken.stopRequested()) {
+            _context->cancelled = true;
+            _stopToken.throwException();
+        }
+        return _handle;
     }
 
     void resolve(void* handle) {
-        _result = DlopenResult{handle, true, _url};
-        _executor->schedule(_continuation);
+        _handle = handle;
+        _ready = true;
+        if (_notifiedExecutor) {
+            _executor->schedule(_continuation);
+        }
     }
 
     void reject() {
-        const char* dlError = dlerror();
-        std::string errorMsg = dlError ? dlError : "Unknown dlopen error";
-        _result = DlopenResult{nullptr, false, _url, errorMsg};
-        _executor->schedule(_continuation);
+        _handle = nullptr;
+        _ready = true;
+        if (_notifiedExecutor) {
+            _executor->schedule(_continuation);
+        }
     }
-
-    template<typename T>
-    friend struct await_ready_trait;
 
 private:
     coro::Executor::Ref _executor;
-    std::string _url;
-    int _flags;
     CoroHandle _continuation;
-    DlopenResult _result;
+    StopToken _stopToken;
+    DlopenInfo _info;
+    DlopenContext* _context = nullptr;
+    void* _handle = nullptr;
+    bool _notifiedExecutor = false;
+    bool _ready = false;
 };
 
-namespace detail {
-
-inline void onEmscriptenDlopenSuccess(void* userData, void* handle) {
-    auto* awaitable = static_cast<DlopenAwaitable*>(userData);
-    awaitable->resolve(handle);
+inline void onDlopenSuccess(void* userData, void* handle) {
+    std::unique_ptr<DlopenContext> context {static_cast<DlopenContext*>(userData)};
+    if (!context->cancelled) {
+        context->awaitable->resolve(handle);
+    }
 }
 
-inline void onEmscriptenDlopenError(void* userData) {
-    auto* awaitable = static_cast<DlopenAwaitable*>(userData);
-    awaitable->reject();
+inline void onDlopenError(void* userData) {
+    std::unique_ptr<DlopenContext> context {static_cast<DlopenContext*>(userData)};
+    if (!context->cancelled) {
+        context->awaitable->reject();
+    }
 }
 
 } // namespace detail
 
-inline DlopenAwaitable dlopenAsync(const std::string& url, int flags = RTLD_NOW | RTLD_GLOBAL) {
-    return DlopenAwaitable{nullptr, url, flags};
+inline detail::DlopenInfo dlopen(std::string path, int flags) {
+    return detail::DlopenInfo {std::move(path), flags};
+}
+
+inline const char* dlerror() {
+    return ::dlerror();
 }
 
 template <>
-struct await_ready_trait<DlopenAwaitable> {
-    static DlopenAwaitable await_transform(const PromiseBase& promise, DlopenAwaitable&& awaitable) {
-        awaitable._executor = promise.executor;
-        return std::move(awaitable);
+struct await_ready_trait<detail::DlopenInfo> {
+    static detail::DlopenAwaitable await_transform(const PromiseBase& promise, detail::DlopenInfo&& awaitable) {
+        return detail::DlopenAwaitable {promise, std::move(awaitable)};
     }
 };
 
