@@ -107,3 +107,26 @@ TEST(Stop, StoppedToken) {
     EXPECT_EQ(exceptions[4][1], 1);
     EXPECT_EQ(exceptions[4][2], 0);
 }
+
+coro::Task<int> resetTest() {
+    co_await coro::sleep(100);
+    co_return 42;
+}
+
+TEST(Stop, Reset) {
+    coro::StopSource ss;
+    coro::StopSource clone = ss;
+
+    auto executor = coro::SerialExecutor::create();
+    auto future0 = executor->future(resetTest().setStopToken(ss.token()));
+    auto future1 = executor->future(resetTest().setStopToken(clone.token()));
+    clone.reset();
+    auto future2 = executor->future(resetTest().setStopToken(clone.token()));
+
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(50ms);
+    ss.requestStop();
+    EXPECT_THROW(future0.get(), coro::StopError);
+    EXPECT_THROW(future1.get(), coro::StopError);
+    EXPECT_EQ(future2.get(), 42);
+}

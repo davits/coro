@@ -137,8 +137,9 @@ private:
 
 class StopSource {
 public:
-    StopSource(std::exception_ptr exception = nullptr)
-        : _state(std::make_shared<StopState>(StopState::Tag {}, std::move(exception))) {}
+    StopSource(std::exception_ptr exception = nullptr) {
+        reset(std::move(exception));
+    }
 
 public:
     StopToken token() const noexcept {
@@ -151,6 +152,14 @@ public:
 
     bool stopRequested() const noexcept {
         return _state->stopRequested();
+    }
+
+    void reset() {
+        _state = std::make_shared<StopState>(StopState::Tag {}, _state->exception());
+    }
+
+    void reset(std::exception_ptr exception) {
+        _state = std::make_shared<StopState>(StopState::Tag {}, std::move(exception));
     }
 
 private:
