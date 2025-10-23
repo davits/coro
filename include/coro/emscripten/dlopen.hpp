@@ -63,7 +63,9 @@ public:
 
     void* await_resume() {
         if (_stopToken.stopRequested()) {
-            _context->cancelled = true;
+            if (_context) {
+                _context->cancelled = true;
+            }
             _stopToken.throwException();
         }
         return _handle;
@@ -71,6 +73,7 @@ public:
 
     void resolve(void* handle) {
         _handle = handle;
+        _context = nullptr;
         _ready = true;
         if (_notifiedExecutor) {
             _executor->schedule(_continuation);
@@ -79,6 +82,7 @@ public:
 
     void reject() {
         _handle = nullptr;
+        _context = nullptr;
         _ready = true;
         if (_notifiedExecutor) {
             _executor->schedule(_continuation);
