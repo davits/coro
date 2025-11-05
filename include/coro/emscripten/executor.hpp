@@ -83,6 +83,16 @@ public:
         co_return jsPromise;
     }
 
+public:
+    /**
+     * Resets time passed from the last sleep(returning to JS event loop) to 0.
+     * Useful to control intervals where interruption is not desirable,
+     * but can happen due to accumulated uptime from previous tasks.
+     */
+    void resetTaskTime() {
+        _state->resetEpoch();
+    }
+
 protected:
     void schedule(CoroHandle handle) override {
         _state->schedule(std::move(handle));
@@ -120,6 +130,7 @@ private:
         std::map<CoroHandle, Callback::Ref> externals;
         detail::JSPromise coroScheduled = detail::JSPromise::null();
         emscripten::val runner;
+        std::chrono::high_resolution_clock::time_point epoch;
         uint32_t maxBlockingTime = 1000 / 30;
         uint32_t checkNthOperation = std::numeric_limits<uint32_t>::max();
         bool finished = false;
@@ -153,6 +164,10 @@ private:
             promise.context.stopToken.addStopCallback(callback);
         }
 
+        void resetEpoch() {
+            epoch = std::chrono::high_resolution_clock::now();
+        }
+
         void executorDestroyed() {
             finished = true;
             if (coroScheduled) {
@@ -162,7 +177,7 @@ private:
     };
 
     static emscripten::val runScheduled(RunState::Ref state) {
-        auto start = now();
+        state->resetEpoch();
         uint32_t opCount = 0;
         while (true) {
             auto next = state->tasks.popBack().value_or(nullptr);
@@ -187,18 +202,14 @@ private:
             }
             if (opCount >= state->checkNthOperation) {
                 opCount = 0;
-                auto passed = passedTime(start);
+                auto passed = passedTime(state->epoch);
                 if (passed > state->maxBlockingTime) {
                     co_await sleep(0); // defer the rest to the next JS event loop cycle
-                    start = now();
+                    state->resetEpoch();
                 }
             }
         }
         co_return emscripten::val::undefined();
-    }
-
-    static std::chrono::high_resolution_clock::time_point now() {
-        return std::chrono::high_resolution_clock::now();
     }
 
     static uint32_t passedTime(std::chrono::high_resolution_clock::time_point start) {
