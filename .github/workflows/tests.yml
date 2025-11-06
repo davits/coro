@@ -1,0 +1,72 @@
+name: Unit Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: wasm
+            preset: coro:wasm
+            build_dir: build/wasm
+            test_preset: tests:wasm
+            cmake_args: ""
+          - name: linux-asan
+            preset: coro
+            build_dir: build/Linux
+            test_preset: tests
+            cmake_args: "-DCORO_SANITIZE=address"
+          - name: linux-leak
+            preset: coro
+            build_dir: build/Linux
+            test_preset: tests
+            cmake_args: "-DCORO_SANITIZE=leak"
+          - name: linux-tsan
+            preset: coro
+            build_dir: build/Linux
+            test_preset: tests
+            cmake_args: "-DCORO_SANITIZE=thread"
+
+    steps:
+      - name: Install LLVM 17
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 17 all
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare emscripten
+        if: matrix.name == 'wasm'
+        working-directory: third_party/emsdk
+        run: ./emsdk install 4.0.10 && ./emsdk activate 4.0.10
+
+      - name: Prepare WASM dependencies
+        if: matrix.name == 'wasm'
+        working-directory: tests/wasm
+        run: npm ci
+
+      - name: Configure CMake
+        env:
+          CC: clang-17
+          CXX: clang++-17
+        run: |
+          cmake --preset ${{ matrix.preset }} ${{ matrix.cmake_args }}
+
+      - name: Build
+        run: |
+          cmake --build ${{ matrix.build_dir }}
+
+      - name: Run tests
+        run: |
+          ctest --preset ${{ matrix.test_preset }}

@@ -32,28 +32,29 @@ if(EMSCRIPTEN)
 endif()
 
 if(CORO_TESTS)
-    option(CORO_SANITIZE_ASAN_AND_UBSAN "Enable ASan and UBSan." ON)
-    option(CORO_SANITIZE_TSAN "Enable TSan." OFF)
-
     target_compile_options(coro INTERFACE -Wall -Wextra -Wnewline-eof -Wformat -Werror)
 
-    set(SANITIZERS "")
+    set(CORO_SANITIZE "off" CACHE STRING "Sanitize tests with 'address', 'leak' or 'thread'")
+    set_property(CACHE CORO_SANITIZE PROPERTY STRINGS "off" "address" "leak" "thread")
 
-    if(CORO_SANITIZE_TSAN AND CORO_SANITIZE_ASAN_AND_UBSAN)
-        message(FATAL_ERROR "TSan is incompatible with ASan/UBSan. Use separate builds.")
+    string(TOUPPER "${CORO_SANITIZE}" CORO_SANITIZE)
+
+    set(SANITIZER_FLAGS "")
+
+    if(CORO_SANITIZE STREQUAL "ADDRESS")
+        message(STATUS "Enabling address sanitizer")
+        set(SANITIZER_FLAGS -fsanitize=address,undefined)
+    elseif(CORO_SANITIZE STREQUAL "LEAK")
+        message(STATUS "Enabling leak sanitizer")
+        set(SANITIZER_FLAGS -fsanitize=leak)
+    elseif(CORO_SANITIZE STREQUAL "THREAD")
+        message(STATUS "Enabling thread sanitizer")
+        set(SANITIZER_FLAGS -fsanitize=thread)
     endif()
 
-    if(CORO_SANITIZE_ASAN_AND_UBSAN)
-        set(SANITIZERS ${SANITIZERS} -fsanitize=address,undefined)
-    endif()
-
-    if(CORO_SANITIZE_TSAN)
-        set(SANITIZERS ${SANITIZERS} -fsanitize=thread)
-    endif()
-
-    if(SANITIZERS)
-        target_compile_options(coro INTERFACE ${SANITIZERS})
-        target_link_options(coro INTERFACE ${SANITIZERS})
+    if(SANITIZER_FLAGS)
+        target_compile_options(coro INTERFACE ${SANITIZER_FLAGS})
+        target_link_options(coro INTERFACE ${SANITIZER_FLAGS})
     endif()
 
     enable_testing()

@@ -74,6 +74,19 @@ public:
         return std::move(*this);
     }
 
+    const TaskContext& context() const {
+        return promise().context;
+    }
+
+    void setContext(const TaskContext& context) & {
+        promise().context = context;
+    }
+
+    Task&& setContext(const TaskContext& context) && {
+        promise().context = context;
+        return std::move(*this);
+    }
+
     CoroHandle handle() const {
         return _handle;
     }

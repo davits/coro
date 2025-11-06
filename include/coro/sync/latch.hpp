@@ -6,11 +6,15 @@
 
 #include "../detail/containers.hpp"
 
+#include <memory>
+
 namespace coro {
 
 namespace detail {
 class LatchAwaitable;
-}
+class LatchState;
+using LatchStateRef = std::shared_ptr<LatchState>;
+} // namespace detail
 
 /**
  * @brief A synchronization primitive that allows coroutines to wait until a specified count of events
@@ -27,11 +31,7 @@ class LatchAwaitable;
 class Latch {
 public:
     Latch(std::ptrdiff_t count)
-        : _count(count) {
-        //
-    }
-
-    Latch(const Latch&) = delete;
+        : _state(std::make_shared<detail::LatchState>(count)) {}
 
     /**
      * @brief Decrements the latch counter and resumes awaiting coroutines
@@ -41,6 +41,25 @@ public:
 
 private:
     friend class detail::LatchAwaitable;
+    const detail::LatchStateRef& state() const {
+        return _state;
+    }
+
+private:
+    detail::LatchStateRef _state;
+};
+
+namespace detail {
+
+class LatchState {
+public:
+    using Ref = std::shared_ptr<LatchState>;
+
+    LatchState(std::ptrdiff_t count)
+        : _count(count) {}
+
+    void count_down(std::ptrdiff_t n = 1);
+
     bool signaled() const {
         std::scoped_lock lock {_mutex};
         return _count <= 0;
@@ -66,24 +85,23 @@ private:
     mutable std::mutex _mutex;
 };
 
-namespace detail {
 class LatchAwaitable {
 private:
     friend await_ready_trait<Latch>;
-    LatchAwaitable(Latch* latch, const PromiseBase& promise)
-        : _latch(latch)
+    LatchAwaitable(const Latch& latch, const PromiseBase& promise)
+        : _state(latch._state)
         , _executor(promise.executor)
         , _stopToken(promise.context.stopToken) {}
 
 public:
     bool await_ready() noexcept {
-        return _latch->signaled();
+        return _state->signaled();
     }
 
     template <typename Promise>
     bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
         _continuation = CoroHandle::fromTypedHandle(continuation);
-        const bool queued = _latch->queue(this);
+        const bool queued = _state->queue(this);
         if (queued) {
             _executor->external(_continuation);
         }
@@ -92,27 +110,25 @@ public:
 
     void await_resume() {
         if (_stopToken.stopRequested()) {
-            _latch->remove(this);
+            _state->remove(this);
             _stopToken.throwException();
         }
     }
 
 private:
-    friend class ::coro::Latch;
+    friend class LatchState;
     void latchSignaled() {
         _executor->schedule(_continuation);
     }
 
 private:
-    Latch* _latch;
+    LatchState::Ref _state;
     Executor::Ref _executor;
     CoroHandle _continuation;
     StopToken _stopToken;
 };
 
-} // namespace detail
-
-inline void Latch::count_down(std::ptrdiff_t n) {
+inline void LatchState::count_down(std::ptrdiff_t n) {
     std::scoped_lock lock {_mutex};
     _count -= n;
     if (_count <= 0) {
@@ -124,10 +140,16 @@ inline void Latch::count_down(std::ptrdiff_t n) {
     }
 }
 
+} // namespace detail
+
+inline void Latch::count_down(std::ptrdiff_t n) {
+    _state->count_down(n);
+}
+
 template <>
 struct await_ready_trait<Latch> {
-    static detail::LatchAwaitable await_transform(const PromiseBase& promise, Latch& latch) {
-        return detail::LatchAwaitable {&latch, promise};
+    static detail::LatchAwaitable await_transform(const PromiseBase& promise, const Latch& latch) {
+        return detail::LatchAwaitable {latch, promise};
     }
 };
 

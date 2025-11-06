@@ -93,7 +93,7 @@ public:
     Awaitable<Task<U>> await_transform(Task<U>&& task);
 
     template <typename T>
-    decltype(auto) await_transform(T&& obj) const {
+    decltype(auto) await_transform(T&& obj) {
         using RawT = std::remove_cvref_t<T>;
         return await_ready_trait<RawT>::await_transform(*this, std::forward<T>(obj));
     }
@@ -142,7 +142,7 @@ private:
 };
 
 /// Helper to easily access to the current executor within the coroutine.
-/// auto executor = co_await coro::currentExecutor;
+/// const Executor::Ref& executor = co_await coro::currentExecutor;
 struct ExecutorAwaitable {};
 inline ExecutorAwaitable currentExecutor;
 
@@ -154,7 +154,7 @@ struct await_ready_trait<ExecutorAwaitable> {
 };
 
 /// Helper to easily access to the stop token of the current task
-/// auto token = co_await coro::currentStopToken;
+/// const StopToken& token = co_await coro::currentStopToken;
 struct StopTokenAwaitable {};
 inline StopTokenAwaitable currentStopToken;
 
@@ -166,7 +166,7 @@ struct await_ready_trait<StopTokenAwaitable> {
 };
 
 /// Helper to easily access to the user data of the current task
-/// auto token = co_await coro::currentUserData;
+/// const UserData::Ref& token = co_await coro::currentUserData;
 struct UserDataAwaitable {};
 inline UserDataAwaitable currentUserData;
 
@@ -174,6 +174,30 @@ template <>
 struct await_ready_trait<UserDataAwaitable> {
     static decltype(auto) await_transform(const PromiseBase& promise, UserDataAwaitable) {
         return ReadyAwaitable<const UserData::Ref&> {promise.context.userData};
+    }
+};
+
+/// Helper to easily access to the context of the current task
+/// const TaskContext& context = co_await coro::currentContext;
+struct TaskContextAwaitable {};
+inline TaskContextAwaitable currentContext;
+
+template <>
+struct await_ready_trait<TaskContextAwaitable> {
+    static decltype(auto) await_transform(PromiseBase& promise, TaskContextAwaitable) {
+        return ReadyAwaitable<const TaskContext&> {promise.context};
+    }
+};
+
+/// Helper to easily access to the underlying promise of the coroutine.
+/// PromiseBase& promise = co_await coro::currentPromise;
+struct PromiseAwaitable {};
+inline PromiseAwaitable currentPromise;
+
+template <>
+struct await_ready_trait<PromiseAwaitable> {
+    static decltype(auto) await_transform(PromiseBase& promise, PromiseAwaitable) {
+        return ReadyAwaitable<PromiseBase&> {promise};
     }
 };
 

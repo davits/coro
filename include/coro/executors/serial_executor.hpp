@@ -112,9 +112,6 @@ private:
             {
                 std::scoped_lock lock {mutex};
                 externals.erase(handle);
-                if (handle.promise().finished()) [[unlikely]] {
-                    return;
-                }
                 tasks.pushFront(std::move(handle));
             }
             cv.notify_one();
@@ -124,9 +121,6 @@ private:
             {
                 std::scoped_lock lock {mutex};
                 externals.erase(handle);
-                if (handle.promise().finished()) [[unlikely]] {
-                    return;
-                }
                 tasks.pushBack(std::move(handle));
             }
             cv.notify_one();

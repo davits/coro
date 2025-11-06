@@ -59,7 +59,7 @@
     {
       "name": "tests:wasm",
       "displayName": "Unit Tests for wasm.",
-      "configurePreset": "coro",
+      "configurePreset": "coro:wasm",
       "output": {
         "outputOnFailure": true
       },

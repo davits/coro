@@ -10,12 +10,12 @@ coro::Task<int> work() {
     co_return 42;
 }
 
-coro::Task<int> consumer(coro::Latch& latch) {
+coro::Task<int> consumer(coro::Latch latch) {
     co_await latch;
     co_return co_await work();
 }
 
-coro::Task<int> producer(coro::Latch& latch) {
+coro::Task<int> producer(coro::Latch latch) {
     auto result = co_await work();
     latch.count_down();
     co_return result;
