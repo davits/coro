@@ -27,6 +27,7 @@ public:
     emscripten::val await_resume() {
         if (_token.stopRequested()) {
             _sleep.call<void>("cancel");
+            _token.throwException();
         }
         return ValAwaitable::await_resume();
     }

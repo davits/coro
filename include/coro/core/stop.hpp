@@ -35,6 +35,7 @@ public:
 public:
     void requestStop() noexcept {
         std::scoped_lock lock {_mutex};
+        _stopRequested.store(true);
         auto callbacks = std::move(_callbacks);
         for (const auto& weakCB : callbacks) {
             auto callback = weakCB.lock();
@@ -42,7 +43,6 @@ public:
                 callback->invoke();
             }
         }
-        _stopRequested.store(true);
     }
 
     bool stopRequested() const noexcept {
@@ -100,6 +100,10 @@ public:
 
     std::exception_ptr exception() const {
         return _state->exception();
+    }
+
+    void reset() {
+        _state.reset();
     }
 
 public:

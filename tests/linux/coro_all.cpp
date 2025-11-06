@@ -1,6 +1,7 @@
 #include <coro/coro.hpp>
 #include <coro/helpers/all.hpp>
 #include <coro/executors/serial_executor.hpp>
+#include <coro/sleep.hpp>
 
 #include <gtest/gtest.h>
 
@@ -176,4 +177,39 @@ TEST(CoroAll, FailingCalls) {
         }
         EXPECT_EQ(failCount, 2);
     }
+}
+
+std::array<int, 4> stops;
+
+coro::Task<int> calculate(int x) {
+    try {
+        co_await coro::sleep(1000);
+        co_return x;
+    } catch (const coro::StopError&) {
+        ++stops[x];
+        throw;
+    } catch (...) {
+        throw;
+    }
+}
+
+coro::Task<int> calculateSum() {
+    try {
+        auto results = co_await coro::all(calculate(1), calculate(2), calculate(3));
+        co_return results[0] + results[1] + results[2];
+    } catch (const coro::StopError&) {
+        ++stops[0];
+        throw;
+    }
+}
+
+TEST(CoroAll, Cancellation) {
+    auto executor = coro::SerialExecutor::create();
+    coro::StopSource ss;
+    auto future = executor->future(calculateSum().setStopToken(ss.token()));
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(50ms);
+    ss.requestStop();
+    EXPECT_THROW(future.get(), coro::StopError);
+    EXPECT_EQ(stops, (std::array<int, 4> {1, 1, 1, 1}));
 }

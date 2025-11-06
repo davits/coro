@@ -12,7 +12,10 @@ template <typename R>
 struct ReadyAwaitable {
     R result;
 
-    ReadyAwaitable(R r)
+    ReadyAwaitable(const R& r)
+        : result(r) {}
+
+    ReadyAwaitable(R&& r)
         : result(std::move(r)) {}
 
     bool await_ready() noexcept {
@@ -26,6 +29,24 @@ struct ReadyAwaitable {
         } else {
             return result;
         }
+    }
+};
+
+template <typename R>
+struct ReadyAwaitable<R&> {
+    R& result;
+
+    ReadyAwaitable(R& r)
+        : result(r) {}
+
+    bool await_ready() noexcept {
+        return true;
+    }
+
+    void await_suspend(std::coroutine_handle<>) noexcept {}
+
+    R& await_resume() {
+        return result;
     }
 };
 
