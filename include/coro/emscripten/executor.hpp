@@ -1,5 +1,6 @@
 #pragma once
 
+#include "exception.hpp"
 #include "js_promise.hpp"
 #include "sleep.hpp"
 
@@ -13,10 +14,6 @@
 #include <emscripten/val.h>
 
 namespace coro {
-
-namespace detail {
-extern "C" emscripten::EM_VAL _coro_lib_val_from_cpp_exception();
-} // namespace detail
 
 /**
  * Single threaded serial executor designed specifically for working in emscripten environment.
@@ -75,7 +72,7 @@ public:
                     promise.resolve(std::move(result));
                 }
             } catch (...) {
-                auto error = emscripten::val::take_ownership(detail::_coro_lib_val_from_cpp_exception());
+                auto error = translateException(std::current_exception());
                 promise.reject(std::move(error));
             }
         }(std::move(task), std::move(promise));

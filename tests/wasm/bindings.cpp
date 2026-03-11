@@ -7,6 +7,11 @@
 #include <coro/emscripten/abort.hpp>
 #include <coro/emscripten/executor.hpp>
 #include <coro/emscripten/bridge.hpp>
+#include <coro/emscripten/exception.hpp>
+
+struct CustomError : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
 
 template <size_t N>
 coro::Task<int> sleepy(bool thr) {
@@ -17,7 +22,7 @@ template <>
 coro::Task<int> sleepy<0>(bool thr) {
     co_await coro::sleep(200);
     if (thr) {
-        throw std::runtime_error {"test error"};
+        throw CustomError {"test error"};
     }
     co_return 42;
 }
@@ -163,9 +168,26 @@ coro::Task<void> testCustomPromiseCancellation() {
     co_await promise;
 }
 
+void registerExceptionTranslator() {
+    coro::registerExceptionTranslator([](std::exception_ptr eptr) -> emscripten::val {
+        try {
+            std::rethrow_exception(eptr);
+        } catch (const CustomError& e) {
+            auto errClass = emscripten::val::global("CustomError");
+            if (!errClass.isUndefined()) {
+                const std::string message {e.what()};
+                return errClass.new_(message);
+            }
+        } catch (...) {
+        }
+        return emscripten::val::undefined();
+    });
+}
+
 EMSCRIPTEN_BINDINGS(Test) {
     emscripten::function("sleepyTask", +[]() { return coro::taskPromise(sleepy<5>(false)); });
     emscripten::function("failingTask", +[]() { return coro::taskPromise(sleepy<5>(true)); });
+    emscripten::function("registerExceptionTranslator", &registerExceptionTranslator);
     emscripten::function(
         "lifetimeTask", +[]() {
             auto executor = TestExecutor::create();
