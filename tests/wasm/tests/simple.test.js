@@ -15,6 +15,15 @@ test("Simple", async () => {
     expect(answer).toBe(42);
 })
 
+class CustomError extends Error {
+    constructor(msg) {
+        super(msg)
+        this.name = "CustomError";
+    }
+}
+
+globalThis.CustomError = CustomError;
+
 test("Exception", async () => {
     await coro.failingTask().then(
         result => {
@@ -22,7 +31,18 @@ test("Exception", async () => {
         },
         error => {
             expect(error).toBeInstanceOf(WebAssembly.Exception);
-            expect(error.message).toStrictEqual(["std::runtime_error", "test error"]);
+            expect(error.message).toStrictEqual(["CustomError", "test error"]);
+        }
+    )
+    coro.registerExceptionTranslator();
+    await coro.failingTask().then(
+        result => {
+            throw new Error(`The failingTask should throw, but got result: ${result}`);
+        },
+        error => {
+            expect(error).toBeInstanceOf(CustomError);
+            expect(error.name).toStrictEqual("CustomError");
+            expect(error.message).toStrictEqual("test error");
         }
     )
 })
