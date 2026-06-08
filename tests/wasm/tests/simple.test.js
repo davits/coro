@@ -55,6 +55,23 @@ test("Lifetime", async () => {
     expect(coro.runStateDestroyed()).toBe(true);
 })
 
+test("CoroAll", async() => {
+    const task = coro.coroAllTask(false);
+    const answer = await Promise.race([task, sleep(300, 11)]);
+    expect(answer).toBe(5 * 42);
+
+    await coro.coroAllTask(true).then(
+        result => {
+            throw new Error(`The failingTask should throw, but got result: ${result}`);
+        },
+        error => {
+            expect(error).toBeInstanceOf(CustomError);
+            expect(error.name).toStrictEqual("CustomError");
+            expect(error.message).toStrictEqual("test error");
+        }
+    )
+})
+
 test("Cancellation", async () => {
     const task = coro.launchCancellableTask();
     let timer = sleep(50, 11);

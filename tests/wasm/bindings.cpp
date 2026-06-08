@@ -1,6 +1,8 @@
 #include <emscripten/bind.h>
 #include <emscripten/emscripten.h>
 
+#include <numeric>
+
 // for testing purposes
 #define private protected
 #include <coro/coro.hpp>
@@ -168,6 +170,17 @@ coro::Task<void> testCustomPromiseCancellation() {
     co_await promise;
 }
 
+coro::Task<int> testCoroAll(bool fail) {
+    std::vector<coro::Task<int>> tasks;
+    tasks.push_back(sleepy<5>(fail));
+    tasks.push_back(sleepy<5>(false));
+    tasks.push_back(sleepy<5>(fail));
+    tasks.push_back(sleepy<5>(false));
+    tasks.push_back(sleepy<5>(fail));
+    std::vector<int> result = co_await coro::all(std::move(tasks));
+    co_return std::accumulate(result.begin(), result.end(), 0);
+}
+
 void registerExceptionTranslator() {
     coro::registerExceptionTranslator([](std::exception_ptr eptr) -> emscripten::val {
         try {
@@ -193,6 +206,7 @@ EMSCRIPTEN_BINDINGS(Test) {
             auto executor = TestExecutor::create();
             return executor->promise(sleepy<5>(false));
         });
+    emscripten::function("coroAllTask", +[](bool fail) { return coro::taskPromise(testCoroAll(fail)); });
     emscripten::function("executorCount", +[]() { return TestExecutor::executorCount; });
     emscripten::function("runStateDestroyed", +[]() { return TestExecutor::weakRunState.lock() == nullptr; });
 
