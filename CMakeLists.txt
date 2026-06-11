@@ -57,7 +57,16 @@ if(CORO_TESTS)
         target_link_options(coro INTERFACE ${SANITIZER_FLAGS})
     endif()
 
+
+    if(EMSCRIPTEN)
+        # Make IDE happy
+        include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/emsdk/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu_cpp/include)
+        include_directories(SYSTEM ${CMAKE_SOURCE_DIR}/third_party/emsdk/upstream/emscripten/cache/ports/emdawnwebgpu/emdawnwebgpu_pkg/webgpu/include)
+    else()
+        include(${CMAKE_CURRENT_SOURCE_DIR}/third_party/FetchDawn.cmake)
+    endif()
+
     enable_testing()
-    add_subdirectory(tests)
     add_subdirectory(third_party)
+    add_subdirectory(tests)
 endif()
