@@ -1,19 +1,27 @@
 # Add the target
 set(MODULE_NAME coro_tests)
-add_executable(${MODULE_NAME} bindings.cpp)
+
+set(CORO_TESTS_SOURCES bindings.cpp webgpu_bindings.cpp)
+
+add_executable(${MODULE_NAME} ${CORO_TESTS_SOURCES})
 
 target_link_libraries(${MODULE_NAME} PRIVATE coro)
 
 # Add Embind-specific flags
-target_compile_options(${MODULE_NAME} PRIVATE -fwasm-exceptions)
+target_compile_options(${MODULE_NAME} PRIVATE
+    -fwasm-exceptions
+    --use-port=emdawnwebgpu
+)
+
 target_link_options(${MODULE_NAME} PRIVATE
     -sMODULARIZE=1
-    -sENVIRONMENT=node
+    -sENVIRONMENT=web,node
     -sALLOW_MEMORY_GROWTH=1
     -sEXPORT_NAME=createModule
     -lembind
     -fwasm-exceptions
     --no-entry
+    --use-port=emdawnwebgpu
 )
 
 add_custom_command(
@@ -28,6 +36,6 @@ add_custom_command(
 
 add_test(
     NAME coro_tests
-    COMMAND npm run test 
+    COMMAND npm run test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
 )

@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -35,21 +35,28 @@ jobs:
             cmake_args: "-DCORO_SANITIZE=thread"
 
     steps:
-      - name: Install LLVM 17
+      - name: Install LLVM 21
         run: |
           wget https://apt.llvm.org/llvm.sh
           chmod +x llvm.sh
-          sudo ./llvm.sh 17 all
+          sudo ./llvm.sh 21 all
 
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      # Dawn's Vulkan backend needs a driver; runners have no GPU, so install
+      # lavapipe (Mesa's software Vulkan implementation). Without it Dawn
+      # falls back to its null backend, which no-ops all GPU work.
+      - name: Install software Vulkan driver
+        if: matrix.name != 'wasm'
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers
+
       - name: Prepare emscripten
         if: matrix.name == 'wasm'
         working-directory: third_party/emsdk
-        run: ./emsdk install 4.0.10 && ./emsdk activate 4.0.10
+        run: ./emsdk install 4.0.23 && ./emsdk activate 4.0.23
 
       - name: Prepare WASM dependencies
         if: matrix.name == 'wasm'
@@ -58,8 +65,8 @@ jobs:
 
       - name: Configure CMake
         env:
-          CC: clang-17
-          CXX: clang++-17
+          CC: clang-21
+          CXX: clang++-21
         run: |
           cmake --preset ${{ matrix.preset }} ${{ matrix.cmake_args }}
 

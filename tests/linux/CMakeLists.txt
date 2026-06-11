@@ -44,3 +44,8 @@ add_executable(pipe pipe.cpp)
 target_link_libraries(pipe coro gtest_main)
 add_test(NAME pipe COMMAND pipe)
 set_tests_properties(pipe PROPERTIES TIMEOUT 2)
+
+add_executable(webgpu webgpu.cpp)
+target_link_libraries(webgpu coro gtest_main dawn::webgpu_dawn)
+add_test(NAME webgpu COMMAND webgpu)
+set_tests_properties(webgpu PROPERTIES TIMEOUT 30)
