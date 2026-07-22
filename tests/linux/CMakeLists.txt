@@ -25,6 +25,11 @@ target_link_libraries(latch coro gtest_main)
 add_test(NAME latch COMMAND latch)
 set_tests_properties(latch PROPERTIES TIMEOUT 2)
 
+add_executable(shared_task shared_task.cpp)
+target_link_libraries(shared_task coro gtest_main)
+add_test(NAME shared_task COMMAND shared_task)
+set_tests_properties(shared_task PROPERTIES TIMEOUT 2)
+
 add_executable(mutex mutex.cpp)
 target_link_libraries(mutex coro gtest_main)
 add_test(NAME mutex COMMAND mutex)
