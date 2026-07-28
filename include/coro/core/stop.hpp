@@ -11,7 +11,7 @@
 
 namespace coro {
 
-class StopError : std::runtime_error {
+class StopError : public std::runtime_error {
 public:
     StopError()
         : std::runtime_error("Stop was requested via stop token.") {}

@@ -4,7 +4,6 @@
 #include "../core/promise_base.hpp"
 #include "../core/traits.hpp"
 #include "../detail/containers.hpp"
-#include "../detail/utils.hpp"
 
 #include <coroutine>
 
@@ -57,12 +56,19 @@ private:
             _locked = true;
             return false;
         }
-        _awaiters.push(awaiter);
+        _awaiters.pushBack(awaiter);
         return true;
     }
 
+    /// Dequeue an awaiter which is no longer interested in the lock, cancelled one for instance.
+    /// Returns whether it was still queued, meaning that the lock has not been passed to it.
+    bool dequeue(detail::MutexAwaitable* awaiter) {
+        std::scoped_lock lock {_mutex};
+        return _awaiters.erase(awaiter) != 0;
+    }
+
 private:
-    detail::Queue<detail::MutexAwaitable*> _awaiters;
+    detail::Deque<detail::MutexAwaitable*> _awaiters;
     mutable std::mutex _mutex;
     bool _locked = false;
 };
@@ -115,14 +121,21 @@ public:
     template <typename Promise>
     bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
         _continuation = CoroHandle::fromTypedHandle(continuation);
-        const bool queued = _mutex->lock_or_queue(this);
-        if (queued) {
+        _queued = _mutex->lock_or_queue(this);
+        if (_queued) {
             _executor->external(_continuation);
         }
-        return queued;
+        return _queued;
     }
 
     ScopedLock await_resume() {
+        // Being resumed while still queued means the lock was never passed to us, so it must not be
+        // released here. Dequeueing under the mutex of the Mutex also settles the race against unlock().
+        if (_queued && _mutex->dequeue(this)) {
+            _stopToken.throwIfStopped();
+            // cancellation is the only thing which resumes a queued awaiter, should not reach here
+            std::abort();
+        }
         ScopedLock lock {_mutex};
         _stopToken.throwIfStopped();
         return lock;
@@ -139,13 +152,14 @@ private:
     Executor::Ref _executor;
     CoroHandle _continuation;
     StopToken _stopToken;
+    bool _queued = false;
 };
 
 } // namespace detail
 
 inline void Mutex::unlock() {
     std::scoped_lock lock {_mutex};
-    auto* awaiter = _awaiters.pop().value_or(nullptr);
+    auto* awaiter = _awaiters.popFront().value_or(nullptr);
     if (awaiter) {
         // since this is a first come first serve mutex
         // if there is an awaiter in the queue pass lock to it without unlocking

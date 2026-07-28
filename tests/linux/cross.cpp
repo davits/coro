@@ -80,3 +80,63 @@ TEST(Cross, Finished) {
     auto r = e->syncWait(finished());
     EXPECT_EQ(r, 42);
 }
+
+coro::Task<int> finishedMultipleAwaits() {
+    auto e = coro::SerialExecutor::create();
+    auto task = e->schedule(second());
+    co_await coro::sleep(200);
+    EXPECT_EQ(task.ready(), true);
+    // task is finished on another executor, both awaits resume without suspension
+    int r1 = co_await task;
+    int r2 = co_await task;
+    co_return r1 + r2;
+};
+
+TEST(Cross, FinishedMultipleAwaits) {
+    auto e = coro::SerialExecutor::create();
+    auto r = e->syncWait(finishedMultipleAwaits());
+    EXPECT_EQ(r, 84);
+}
+
+coro::Task<int> multipleAwaitersOnOtherExecutor() {
+    auto e = coro::SerialExecutor::create();
+    auto task = e->schedule(second());
+    // both awaiters live on the current executor, while the task runs on `e`,
+    // so each of them is marked as external and scheduled once the task is finished
+    auto results = co_await coro::all(task, task);
+    co_return results[0] + results[1];
+};
+
+TEST(Cross, MultipleAwaiters) {
+    auto e = coro::SerialExecutor::create();
+    auto r = e->syncWait(multipleAwaitersOnOtherExecutor());
+    EXPECT_EQ(r, 84);
+}
+
+std::atomic<int> sharedTaskCounter = 0;
+
+coro::Task<int> sharedTask() {
+    ++sharedTaskCounter;
+    co_await coro::sleep(100);
+    co_return 42;
+}
+
+coro::Task<int> awaitShared(coro::Task<int> task) {
+    co_return co_await task;
+}
+
+// Single task awaited both from its own executor and from another one, so that one awaiter is
+// a plain queue entry while the other is marked as external, and a single completion has to
+// wake up both of them.
+TEST(Cross, MixedAwaiterExecutors) {
+    auto own = coro::SerialExecutor::create();
+    auto other = coro::SerialExecutor::create();
+
+    auto task = own->schedule(sharedTask());
+    auto sameExecutor = own->future(awaitShared(task));
+    auto crossExecutor = other->future(awaitShared(task));
+
+    EXPECT_EQ(sameExecutor.get(), 42);
+    EXPECT_EQ(crossExecutor.get(), 42);
+    EXPECT_EQ(sharedTaskCounter, 1);
+}

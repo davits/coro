@@ -6,11 +6,6 @@
 
 namespace coro {
 
-template <typename U>
-Awaitable<Task<U>> PromiseBase::await_transform(Task<U>&& task) {
-    return Awaitable<Task<U>> {std::move(task)};
-}
-
 template <typename R>
 Task<R> Promise<R>::get_return_object() {
     return Task<R>(CoroHandle::fromTypedHandle(handle_t::from_promise(*this)));

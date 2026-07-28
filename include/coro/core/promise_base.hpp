@@ -7,7 +7,9 @@
 #include "task.fwd.hpp"
 #include "traits.hpp"
 
+#include <atomic>
 #include <mutex>
+#include <vector>
 
 namespace coro {
 
@@ -39,15 +41,24 @@ private:
 public:
     Executor::Ref executor;
     TaskContext context;
-    CoroHandle continuation = nullptr;
+
+private:
+    // A single awaiter is by far the most common case, so it is stored inline and the overflow storage
+    // allocates only for a task which is awaited more than once. std::vector is used because its default
+    // constructor is noexcept and hence can not allocate, unlike the deque behind std::queue.
+    // Both are valid only while the mutex is held.
+    CoroHandle _masterAwaiter;
+    std::vector<CoroHandle> _overflowAwaiters;
 
 protected:
     std::exception_ptr _exception;
-    ValueState _valueState;
+    ValueState _valueState = ValueState::Uninitialized;
 
 private:
     mutable std::mutex _mutex;
-    bool _finished = false;
+    // Read without the mutex, so that executors can query it from within their scheduling functions,
+    // which can be called while the mutex is held. Only ever goes from false to true.
+    std::atomic<bool> _finished = false;
     bool _inheritContext = true;
 
 public:
@@ -65,7 +76,7 @@ public:
 
     class FinalAwaiter {
     public:
-        bool await_ready() noexcept {
+        constexpr bool await_ready() noexcept {
             return false;
         }
 
@@ -89,9 +100,6 @@ public:
         emplace_exception(std::current_exception());
     }
 
-    template <typename U>
-    Awaitable<Task<U>> await_transform(Task<U>&& task);
-
     template <typename T>
     decltype(auto) await_transform(T&& obj) {
         using RawT = std::remove_cvref_t<T>;
@@ -99,16 +107,33 @@ public:
     }
 
 public:
-    void set_continuation(CoroHandle&& cont) {
+    bool add_awaiter(CoroHandle taskHandle, CoroHandle awaitingHandle) {
+        auto& awaitingPromise = awaitingHandle.promise();
         std::scoped_lock lock {_mutex};
-        continuation = std::move(cont);
         if (_finished) {
-            schedule_continuation();
+            return false;
         }
+        if (!_masterAwaiter) {
+            _masterAwaiter = awaitingHandle;
+        } else {
+            _overflowAwaiters.push_back(awaitingHandle);
+        }
+        if (executor == nullptr) {
+            // if task is not scheduled on any executor,
+            // copy awaitingHandle task context and schedule on the same executor
+            executor = awaitingPromise.executor;
+            inheritContext(awaitingPromise);
+            // schedule new task via next() to ensure that the call hierarchy has precedence.
+            // This way scheduled tasks will work one by one rather then all at once with intermingled execution order.
+            executor->next(taskHandle);
+        } else if (executor != awaitingPromise.executor) {
+            // mark awaitingHandle as waiting for external execution
+            awaitingPromise.executor->external(awaitingHandle);
+        }
+        return true;
     }
 
     bool finished() const {
-        std::scoped_lock lock {_mutex};
         return _finished;
     }
 
@@ -125,19 +150,31 @@ public:
 private:
     void on_finished() {
         std::scoped_lock lock {_mutex};
-        schedule_continuation();
         _finished = true;
+        if (!_masterAwaiter) {
+            return;
+        }
+        schedule_awaiter(std::move(_masterAwaiter));
+        for (auto& awaiter : _overflowAwaiters) {
+            schedule_awaiter(std::move(awaiter));
+        }
+        _overflowAwaiters.clear();
     }
 
-    void schedule_continuation() {
-        if (continuation) {
-            auto continuationExecutor = continuation.promise().executor;
-            if (continuationExecutor == executor) {
-                continuationExecutor->next(continuation);
-            } else {
-                continuationExecutor->schedule(continuation);
-            }
+    void schedule_awaiter(CoroHandle awaiter) {
+        auto awaiterExecutor = awaiter.promise().executor;
+        if (awaiterExecutor == executor) {
+            awaiterExecutor->next(std::move(awaiter));
+        } else {
+            awaiterExecutor->schedule(std::move(awaiter));
         }
+    }
+};
+
+template <typename T>
+struct await_ready_trait<Task<T>> {
+    static decltype(auto) await_transform(const PromiseBase& promise, Task<T> task) {
+        return Awaitable<Task<T>> {std::move(task), promise.context.stopToken};
     }
 };
 

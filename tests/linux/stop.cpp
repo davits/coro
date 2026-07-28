@@ -108,6 +108,46 @@ TEST(Stop, StoppedToken) {
     EXPECT_EQ(exceptions[4][2], 0);
 }
 
+coro::Task<int> foreignTask() {
+    co_await coro::sleep(100);
+    co_return 42;
+}
+
+coro::Task<void> awaitForeignTask(coro::Task<int> task, int& stopErrors, int& otherErrors) {
+    try {
+        co_await task;
+    } catch (const coro::StopError&) {
+        ++stopErrors;
+    } catch (...) {
+        ++otherErrors;
+    }
+}
+
+// Awaited task runs on another executor and carries its own, never signaled stop token.
+// Cancelling the awaiter must surface StopError, so the stop token of the awaiter is the one to check.
+TEST(Stop, ForeignTaskToken) {
+    coro::StopSource inner;
+    coro::StopSource outer;
+    auto worker = coro::SerialExecutor::create();
+    auto executor = coro::SerialExecutor::create();
+
+    auto task = worker->schedule(foreignTask().setStopToken(inner.token()));
+    int stopErrors = 0;
+    int otherErrors = 0;
+    auto future = executor->future(awaitForeignTask(task, stopErrors, otherErrors).setStopToken(outer.token()));
+
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(30ms);
+    outer.requestStop();
+    future.get();
+    EXPECT_EQ(stopErrors, 1);
+    EXPECT_EQ(otherErrors, 0);
+
+    // let the foreign task finish, so its executor drains before the test ends
+    worker->drain();
+    EXPECT_EQ(task.ready(), true);
+}
+
 coro::Task<int> resetTest() {
     co_await coro::sleep(100);
     co_return 42;
