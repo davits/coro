@@ -26,9 +26,8 @@ public:
         : _handle(std::move(handle)) {}
 
 public:
-    // Move only
-    Task(const Task&) = delete;
-    Task& operator=(const Task&) = delete;
+    Task(const Task&) = default;
+    Task& operator=(const Task&) = default;
     Task(Task&&) = default;
     Task& operator=(Task&&) = default;
 

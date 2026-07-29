@@ -33,7 +33,7 @@ template <typename... Args>
     requires(std::same_as<Args, void> && ...)
 Task<void> all(Task<Args>... tasks) {
     constexpr size_t count = sizeof...(tasks);
-    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
+    static_assert(count > 1, "It does not make sense to use coro::all() with one argument.");
     Latch latch {static_cast<std::ptrdiff_t>(count)};
     auto executor = co_await currentExecutor;
     std::exception_ptr eptr = nullptr;
@@ -56,7 +56,7 @@ template <typename T, typename... Args>
     requires(std::same_as<Args, T> && ... && !std::same_as<T, void>)
 Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
     constexpr size_t count = 1 + sizeof...(rest);
-    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
+    static_assert(count > 1, "It does not make sense to use coro::all() with one argument.");
     std::vector<T> results(count);
     Latch latch {static_cast<std::ptrdiff_t>(count)};
     auto executor = co_await currentExecutor;
@@ -66,7 +66,7 @@ Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
 
     executor->next(detail::runAndNotify(std::move(first), latch, eptr, &results[0]).setContext(promise.context));
     size_t idx = 1;
-    (executor->next(detail::runAndNotify(std::move(rest), latch, eptr, &results[idx++])).setContext(promise.context),
+    (executor->next(detail::runAndNotify(std::move(rest), latch, eptr, &results[idx++]).setContext(promise.context)),
      ...);
 
     // Reset stop token before awaiting for the latch, so we don't wake up from cancellation here when child tasks are
@@ -82,7 +82,7 @@ Task<std::vector<T>> all(Task<T> first, Task<Args>... rest) {
 template <typename... Args>
 Task<std::vector<std::any>> all(Task<Args>... tasks) {
     constexpr size_t count = sizeof...(tasks);
-    static_assert(count > 2, "It does not make sense to use coro::all() with <2 arguments...");
+    static_assert(count > 1, "It does not make sense to use coro::all() with one argument.");
 
     std::vector<std::any> results(count);
     Latch latch {static_cast<std::ptrdiff_t>(count)};

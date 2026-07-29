@@ -62,6 +62,21 @@ TEST(CoroAll, MixedTasksAndSyncWait) {
     EXPECT_EQ(voidTaskCount, 3);
 }
 
+TEST(CoroAll, TwoTasks) {
+    auto executor = coro::SerialExecutor::create();
+
+    int voidTaskCount = 0;
+    executor->syncWait(coro::all(increment(voidTaskCount), increment(voidTaskCount)));
+    EXPECT_EQ(voidTaskCount, 2);
+
+    auto numbers = executor->syncWait(coro::all(returnNumber(10), returnNumber(20)));
+    EXPECT_EQ(numbers, (std::vector<int> {10, 20}));
+
+    auto mixed = executor->syncWait(coro::all(increment(voidTaskCount), returnNumber(30)));
+    EXPECT_EQ(voidTaskCount, 3);
+    EXPECT_EQ(std::any_cast<int>(mixed[1]), 30);
+}
+
 coro::Task<void> executeMixedTasks(std::vector<std::any>& results, int& voidTaskCount) {
     results = co_await coro::all(increment(voidTaskCount), returnNumber(123), increment(voidTaskCount));
 }

@@ -80,7 +80,7 @@ public:
     SleepAwaitable(uint32_t sleep)
         : _sleep(sleep) {}
 
-    bool await_ready() noexcept {
+    constexpr bool await_ready() noexcept {
         return false;
     }
 

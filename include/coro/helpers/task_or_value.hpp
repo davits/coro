@@ -104,9 +104,9 @@ namespace detail {
 
 template <typename R>
 struct TaskOrValueAwaitable {
-    TaskOrValueAwaitable(TaskOrValue<R>&& tv) {
+    TaskOrValueAwaitable(TaskOrValue<R>&& tv, StopToken stopToken) {
         if (tv.isTask()) {
-            _awaitable = Awaitable<Task<R>> {std::move(tv.task())};
+            _awaitable = Awaitable<Task<R>> {std::move(tv.task()), std::move(stopToken)};
         } else {
             if constexpr (std::is_same_v<R, void>) {
                 _awaitable = ReadyAwaitable<void> {};
@@ -117,12 +117,13 @@ struct TaskOrValueAwaitable {
     }
 
     bool await_ready() noexcept {
-        return !isTask();
+        return !isTask() || taskAwaitable().await_ready();
     }
 
     template <typename Promise>
-    void await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
-        taskAwaitable().await_suspend(continuation);
+    bool await_suspend(std::coroutine_handle<Promise> continuation) noexcept {
+        // forward the result, awaited task might be already finished in which case it must not suspend
+        return taskAwaitable().await_suspend(continuation);
     }
 
     R await_resume() {
@@ -154,8 +155,8 @@ private:
 
 template <typename R>
 struct await_ready_trait<TaskOrValue<R>> {
-    static detail::TaskOrValueAwaitable<R> await_transform(const PromiseBase&, TaskOrValue<R>&& awaitable) {
-        return {std::move(awaitable)};
+    static detail::TaskOrValueAwaitable<R> await_transform(const PromiseBase& promise, TaskOrValue<R>&& awaitable) {
+        return {std::move(awaitable), promise.context.stopToken};
     }
 };
 

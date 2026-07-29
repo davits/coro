@@ -51,7 +51,7 @@ private:
 
 namespace detail {
 
-class LatchState {
+class LatchState : public std::enable_shared_from_this<LatchState> {
 public:
     using Ref = std::shared_ptr<LatchState>;
 
@@ -129,9 +129,13 @@ private:
 };
 
 inline void LatchState::count_down(std::ptrdiff_t n) {
+    // A notified awaiter can drop the last Latch referring to this state. Declared before the lock, so that
+    // the state is destroyed after the mutex is released, and assigned only by the call which notifies.
+    LatchState::Ref self;
     std::scoped_lock lock {_mutex};
     _count -= n;
     if (_count <= 0) {
+        self = shared_from_this();
         while (true) {
             auto next = _awaiters.popFront().value_or(nullptr);
             if (!next) break;

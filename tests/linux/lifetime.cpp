@@ -51,6 +51,10 @@ TEST(Simple, Lifetime) {
         result = executor->syncWait(std::move(task));
         EXPECT_EQ(*counter, 1);
     }
+    // syncWait() returns as soon as the task value is set, at which point the executor thread can still
+    // hold the last reference to the wrapper task and hence to the executor itself, so give it time.
+    using namespace std::chrono_literals;
+    std::this_thread::sleep_for(100ms);
     // Make sure that executor was destroyed despite the fact that there are circular shared references
     // between executor and task promises.
     EXPECT_EQ(*counter, 0);

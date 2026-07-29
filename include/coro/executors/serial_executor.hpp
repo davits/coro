@@ -7,6 +7,7 @@
 #include <future>
 #include <mutex>
 #include <map>
+#include <thread>
 
 namespace coro {
 
@@ -72,6 +73,22 @@ public:
         return f.get();
     }
 
+    /**
+     * Blocks the calling thread while the executor has work to do, that is while there are queued tasks,
+     * a task being executed, or a task waiting for an external event.
+     * Returns immediately if the executor is already idle. Note that tasks scheduled from another thread
+     * after this call has returned are not accounted for.
+     * Must not be called from the executor thread itself, the queue can not drain while the thread
+     * draining it is blocked here.
+     */
+    void drain() {
+        if (std::this_thread::get_id() == _runningThread.get_id()) {
+            // would block forever, this is the thread which is supposed to drain the queue
+            std::abort();
+        }
+        _state->drain();
+    }
+
 protected:
     void schedule(CoroHandle coro) override {
         _state->schedule(std::move(coro));
@@ -105,13 +122,20 @@ private:
         detail::Deque<CoroHandle> tasks;
         std::map<CoroHandle, Callback::Ref> externals;
         std::condition_variable cv;
+        std::condition_variable idleCV;
         std::mutex mutex;
         std::atomic<bool> finished = false;
+        bool running = false;
 
         void schedule(CoroHandle&& handle) {
             {
                 std::scoped_lock lock {mutex};
                 externals.erase(handle);
+                if (handle.promise().finished()) [[unlikely]] {
+                    // nothing to execute, erasing it from the externals might have made the executor idle
+                    notifyIfIdle();
+                    return;
+                }
                 tasks.pushFront(std::move(handle));
             }
             cv.notify_one();
@@ -121,6 +145,11 @@ private:
             {
                 std::scoped_lock lock {mutex};
                 externals.erase(handle);
+                if (handle.promise().finished()) [[unlikely]] {
+                    // nothing to execute, erasing it from the externals might have made the executor idle
+                    notifyIfIdle();
+                    return;
+                }
                 tasks.pushBack(std::move(handle));
             }
             cv.notify_one();
@@ -141,12 +170,29 @@ private:
             promise.context.stopToken.addStopCallback(callback);
         }
 
+        void drain() {
+            std::unique_lock lock {mutex};
+            idleCV.wait(lock, [this] { return idle() || finished; });
+        }
+
+        /// Both must be called while the mutex is held.
+        bool idle() const {
+            return tasks.empty() && externals.empty() && !running;
+        }
+
+        void notifyIfIdle() {
+            if (idle()) {
+                idleCV.notify_all();
+            }
+        }
+
         void executorDestroyed() {
             {
                 std::scoped_lock lock {mutex};
                 finished = true;
             }
             cv.notify_one();
+            idleCV.notify_all();
         }
     };
 
@@ -154,7 +200,10 @@ private:
         // Runs in a separate thread
         while (true) {
             std::unique_lock lock {state->mutex};
+            // the task popped by the previous iteration, if any, is done executing by now
+            state->running = false;
             if (state->tasks.empty() && !state->finished) {
+                state->notifyIfIdle();
                 state->cv.wait(lock, [&state] { return !state->tasks.empty() || state->finished; });
             }
             if (state->finished) {
@@ -165,6 +214,7 @@ private:
                 break;
             }
             CoroHandle task = state->tasks.popBack().value();
+            state->running = true;
             // release lock and give a chance to schedule while task is being executed
             lock.unlock();
             // this can happen during cancellation, when coroutine waiting for external event

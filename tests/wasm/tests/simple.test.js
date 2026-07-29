@@ -86,7 +86,7 @@ test("Cancellation", async () => {
         },
         (error) => {
             expect(error).toBeInstanceOf(WebAssembly.Exception);
-            expect(error.message).toStrictEqual(["coro::StopError", undefined]);
+            expect(error.message).toStrictEqual(["coro::StopError", "Stop was requested via stop token."]);
         }
     );
 })
