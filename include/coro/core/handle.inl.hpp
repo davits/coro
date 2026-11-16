@@ -33,35 +33,37 @@ inline CoroHandle::CoroHandle(const CoroHandle& other) {
     }
 }
 
-inline CoroHandle::CoroHandle(CoroHandle&& other) {
+inline CoroHandle::CoroHandle(CoroHandle&& other) noexcept {
     _handle = std::exchange(other._handle, nullptr);
     _promise = std::exchange(other._promise, nullptr);
 }
 
 inline CoroHandle& CoroHandle::operator=(const CoroHandle& other) {
-    reset();
-    _handle = other._handle;
-    _promise = other._promise;
-    if (_promise) {
-        ++_promise->_useCount;
-    }
+    // Take the new reference before dropping the old one: safe for self-assignment and for
+    // `other` living inside the frame that the old reference keeps alive.
+    CoroHandle copy {other};
+    swap(copy);
     return *this;
 }
 
-inline CoroHandle& CoroHandle::operator=(CoroHandle&& other) {
-    _handle = std::exchange(other._handle, nullptr);
-    _promise = std::exchange(other._promise, nullptr);
+inline CoroHandle& CoroHandle::operator=(CoroHandle&& other) noexcept {
+    CoroHandle moved {std::move(other)};
+    swap(moved);
     return *this;
+}
+
+inline void CoroHandle::swap(CoroHandle& other) noexcept {
+    std::swap(_handle, other._handle);
+    std::swap(_promise, other._promise);
 }
 
 inline void CoroHandle::reset() {
-    if (_handle) {
-        if (--(_promise->_useCount) == 0) {
-            _handle.destroy();
-        }
+    // Detach first: destroying the frame may destroy the object holding this handle.
+    auto handle = std::exchange(_handle, nullptr);
+    auto* promise = std::exchange(_promise, nullptr);
+    if (handle && --(promise->_useCount) == 0) {
+        handle.destroy();
     }
-    _handle = nullptr;
-    _promise = nullptr;
 }
 
 template <typename T>

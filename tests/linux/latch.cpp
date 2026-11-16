@@ -45,7 +45,7 @@ TEST(Latch, Cancellation) {
     EXPECT_EQ(future.wait_for(100ms), std::future_status::timeout);
 
     stop.requestStop();
-    EXPECT_THROW(future.get(), coro::StopError);
+    EXPECT_THROW((void)future.get(), coro::StopError);
 }
 
 TEST(Latch, CrossExecutor) {

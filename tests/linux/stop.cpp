@@ -70,14 +70,14 @@ TEST(Stop, Normal) {
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(70ms);
     ss0.requestStop();
-    EXPECT_THROW(future0.get(), coro::StopError);
+    EXPECT_THROW((void)future0.get(), coro::StopError);
     EXPECT_EQ(exceptions[0][0], 1);
     EXPECT_EQ(exceptions[0][1], 1);
     EXPECT_EQ(exceptions[0][2], 0);
 
     std::this_thread::sleep_for(70ms);
     ss1.requestStop();
-    EXPECT_THROW(future1.get(), Cancelled);
+    EXPECT_THROW((void)future1.get(), Cancelled);
     EXPECT_EQ(exceptions[1][0], 1);
     EXPECT_EQ(exceptions[1][1], 0);
     EXPECT_EQ(exceptions[1][2], 1);
@@ -102,7 +102,7 @@ TEST(Stop, StoppedToken) {
     task2.setStopToken(ss.token());
     auto future = executor->future(std::move(task2));
 
-    EXPECT_THROW(future.get(), coro::StopError);
+    EXPECT_THROW((void)future.get(), coro::StopError);
     EXPECT_EQ(exceptions[4][0], 1);
     EXPECT_EQ(exceptions[4][1], 1);
     EXPECT_EQ(exceptions[4][2], 0);
@@ -166,7 +166,7 @@ TEST(Stop, Reset) {
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(50ms);
     ss.requestStop();
-    EXPECT_THROW(future0.get(), coro::StopError);
-    EXPECT_THROW(future1.get(), coro::StopError);
+    EXPECT_THROW((void)future0.get(), coro::StopError);
+    EXPECT_THROW((void)future1.get(), coro::StopError);
     EXPECT_EQ(future2.get(), 42);
 }

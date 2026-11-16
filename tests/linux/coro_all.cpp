@@ -225,6 +225,6 @@ TEST(CoroAll, Cancellation) {
     using namespace std::chrono_literals;
     std::this_thread::sleep_for(50ms);
     ss.requestStop();
-    EXPECT_THROW(future.get(), coro::StopError);
+    EXPECT_THROW((void)future.get(), coro::StopError);
     EXPECT_EQ(stops, (std::array<int, 4> {1, 1, 1, 1}));
 }
