@@ -72,11 +72,13 @@ public:
 
     CoroHandle(const CoroHandle& other);
 
-    CoroHandle(CoroHandle&& other);
+    CoroHandle(CoroHandle&& other) noexcept;
 
     CoroHandle& operator=(const CoroHandle& other);
 
-    CoroHandle& operator=(CoroHandle&& other);
+    CoroHandle& operator=(CoroHandle&& other) noexcept;
+
+    void swap(CoroHandle& other) noexcept;
 
 private:
     CoroHandle(handle_t handle, PromiseBase* promise);
