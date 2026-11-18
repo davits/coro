@@ -31,6 +31,17 @@ public:
     template <typename R>
     Task<R> next(Task<R>&& task);
 
+    /// schedule() for a TaskOrValue: a task is scheduled as above and returned still wrapped, so it is already
+    /// running when it is co_await(ed) later, possibly from another executor; a value is returned as is.
+    /// Defined in helpers/task_or_value.hpp.
+    template <typename R>
+    TaskOrValue<R> schedule(TaskOrValue<R>&& taskOrValue);
+
+    /// next() for a TaskOrValue, with the same task/value handling as schedule() above.
+    /// Defined in helpers/task_or_value.hpp.
+    template <typename R>
+    TaskOrValue<R> next(TaskOrValue<R>&& taskOrValue);
+
 public:
     /// Will be called to schedule new independant handle.
     /// Override should schedule given handle in some internal storage to be executed later.

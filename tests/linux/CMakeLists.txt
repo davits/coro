@@ -45,6 +45,16 @@ target_link_libraries(pipe coro gtest_main)
 add_test(NAME pipe COMMAND pipe)
 set_tests_properties(pipe PROPERTIES TIMEOUT 2)
 
+add_executable(task_or_value task_or_value.cpp)
+target_link_libraries(task_or_value coro gtest_main)
+add_test(NAME task_or_value COMMAND task_or_value)
+set_tests_properties(task_or_value PROPERTIES TIMEOUT 2)
+
+add_executable(channel channel.cpp)
+target_link_libraries(channel coro gtest_main)
+add_test(NAME channel COMMAND channel)
+set_tests_properties(channel PROPERTIES TIMEOUT 5)
+
 add_executable(webgpu webgpu.cpp)
 target_link_libraries(webgpu coro gtest_main dawn::webgpu_dawn)
 add_test(NAME webgpu COMMAND webgpu)

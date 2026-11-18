@@ -33,6 +33,7 @@ coro is a C++20 coroutine library that provides implementation of underlying gea
 - Async mutex `coro::Mutex`
 - Async latch `coro::Latch`
 - Async pipe `coro::Pipe<T>`
+- Closable channels `coro::Channel<T>` (unbounded) and `coro::BoundedChannel<T>` (back-pressure, 0 = rendezvous)
 
 ### Cancellation
 
@@ -136,6 +137,29 @@ coro::Task<void> mutexExample() {
     }
 }
 ```
+
+```cpp
+#include <coro/sync/channel.hpp>
+
+// Producer and consumer may run on different executors; send() suspends while 4 values wait unreceived.
+coro::BoundedChannel<int> channel {4};
+
+coro::Task<void> producer() {
+    for (int i = 0; i < 100; ++i) {
+        co_await channel.send(i);
+    }
+    channel.close();
+}
+
+coro::Task<void> consumer() {
+    while (auto value = co_await channel.receive()) {
+        // use *value; the loop ends once the channel is closed and drained
+    }
+}
+```
+
+`Executor::schedule()` also takes a `coro::TaskOrValue<T>`: a task starts right away and can be co_await(ed) later,
+a value passes through without a coroutine frame.
 
 ### Cancellation
 
