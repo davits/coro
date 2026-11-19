@@ -8,8 +8,10 @@
 
 #include <algorithm>
 #include <atomic>
+#include <memory>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -57,6 +59,51 @@ coro::Task<int> sumThroughChannel() {
 
 TEST(BoundedChannel, ProducerAndConsumer) {
     EXPECT_EQ(run(sumThroughChannel()), sumTo(100));
+}
+
+namespace {
+
+/// Move-only, like most real payloads that own a resource: the channel has to move values through, never copy them.
+struct Message {
+    int id = 0;
+    std::string text;
+    std::unique_ptr<std::vector<int>> payload;
+};
+
+} // namespace
+
+coro::Task<int> messagesThroughChannel() {
+    // Small enough that values go both through the buffer and straight from a waiting sender.
+    coro::BoundedChannel<Message> channel {2};
+
+    auto producer = [](coro::BoundedChannel<Message> channel) -> coro::Task<void> {
+        for (int i = 1; i <= 10; ++i) {
+            co_await channel.send(
+                Message {i, "message " + std::to_string(i), std::make_unique<std::vector<int>>(i, i)});
+        }
+        channel.close();
+    };
+
+    auto consumer = [](coro::BoundedChannel<Message> channel) -> coro::Task<int> {
+        int received = 0;
+        while (auto message = co_await channel.receive()) {
+            ++received;
+            EXPECT_EQ(message->id, received);
+            EXPECT_EQ(message->text, "message " + std::to_string(received));
+            EXPECT_TRUE(message->payload != nullptr);
+            if (message->payload) {
+                EXPECT_EQ(*message->payload, std::vector<int>(received, received));
+            }
+        }
+        co_return received;
+    };
+
+    (co_await coro::currentExecutor)->schedule(producer(channel));
+    co_return co_await consumer(channel);
+}
+
+TEST(BoundedChannel, MovesAComplexType) {
+    EXPECT_EQ(run(messagesThroughChannel()), 10);
 }
 
 namespace {
