@@ -4,8 +4,10 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <future>
 #include <optional>
 #include <thread>
 #include <vector>
@@ -32,7 +34,8 @@ coro::Task<std::vector<int>> receiveAll(Channel channel) {
     co_return values;
 }
 
-coro::Task<std::optional<int>> receiveOne(coro::BoundedChannel<int> channel) {
+template <typename Channel>
+coro::Task<std::optional<int>> receiveOne(Channel channel) {
     co_return co_await channel.receive();
 }
 
@@ -111,6 +114,39 @@ TEST(BoundedChannel, ReceiversDrainValuesSentBeforeClose) {
     EXPECT_EQ(executor->syncWait(receiveAll(channel)), (std::vector<int> {1, 2}));
 }
 
+TEST(BoundedChannel, ReadersTakeQueuedValuesThenSeeTheClose) {
+    coro::BoundedChannel<int> channel {3};
+    auto executor = coro::SerialExecutor::create();
+    for (int i = 1; i <= 3; ++i) {
+        EXPECT_TRUE(executor->syncWait(sendOne(channel, i)));
+    }
+    channel.close();
+    EXPECT_FALSE(executor->syncWait(sendOne(channel, 4)));
+
+    // Each reader takes the next queued value; only the reader after the last one sees the end of the channel.
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), 1);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), 2);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), 3);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), std::nullopt);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), std::nullopt);
+}
+
+TEST(BoundedChannel, CloseWithAWaitingSenderKeepsQueuedValues) {
+    coro::BoundedChannel<int> channel {2};
+    auto executor = coro::SerialExecutor::create();
+    EXPECT_TRUE(executor->syncWait(sendOne(channel, 1)));
+    EXPECT_TRUE(executor->syncWait(sendOne(channel, 2)));
+    auto sending = executor->future(sendOne(channel, 3));
+    EXPECT_EQ(sending.wait_for(50ms), std::future_status::timeout);
+
+    channel.close();
+    // The waiting sender's value never got in, so it is dropped; the queued ones stay for the readers.
+    EXPECT_FALSE(sending.get());
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), 1);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), 2);
+    EXPECT_EQ(executor->syncWait(receiveOne(channel)), std::nullopt);
+}
+
 TEST(BoundedChannel, ProducerAndConsumerOnTwoExecutors) {
     coro::BoundedChannel<int> channel {4};
     auto producer = coro::SerialExecutor::create();
@@ -163,4 +199,31 @@ TEST(Channel, ThreadSendsCoroutineReceives) {
     producer.join();
     EXPECT_EQ(receiving.get(), iota(100));
     EXPECT_FALSE(channel.send(100));
+}
+
+TEST(Channel, ReadersOnTwoExecutorsTakeQueuedValuesThenSeeTheClose) {
+    coro::Channel<int> channel;
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_TRUE(channel.send(i));
+    }
+    channel.close();
+
+    // Eight readers for five queued values: every value goes to exactly one reader, the other three see the close.
+    std::vector<coro::SerialExecutor::Ref> executors {coro::SerialExecutor::create(), coro::SerialExecutor::create()};
+    std::vector<std::future<std::optional<int>>> readers;
+    for (int i = 0; i < 8; ++i) {
+        readers.push_back(executors[i % 2]->future(receiveOne(channel)));
+    }
+    std::vector<int> values;
+    int closed = 0;
+    for (auto& reader : readers) {
+        if (auto value = reader.get()) {
+            values.push_back(*value);
+        } else {
+            ++closed;
+        }
+    }
+    std::sort(values.begin(), values.end());
+    EXPECT_EQ(values, iota(5));
+    EXPECT_EQ(closed, 3);
 }
