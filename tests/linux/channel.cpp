@@ -14,7 +14,8 @@
 #include <vector>
 
 // Every test is a job, as a channel would be used for real: a producer sends values into the channel and closes it
-// when it is done, while a consumer takes values until the channel ends.
+// when it is done, while a consumer takes values until the channel ends. With several producers none of them knows
+// when the channel is done, so the job closes it once all of them are.
 
 namespace {
 
@@ -231,13 +232,6 @@ coro::Task<int> fanIn() {
         }
     };
 
-    // No single producer knows when the channel is done; whoever started them closes it once all of them are.
-    auto closeWhenDone = [](coro::BoundedChannel<int> channel,
-                            std::vector<coro::Task<void>> producers) -> coro::Task<void> {
-        co_await coro::all(std::move(producers));
-        channel.close();
-    };
-
     auto consumer = [](coro::BoundedChannel<int> channel) -> coro::Task<int> {
         int sum = 0;
         std::vector<int> previous(kFanInProducers, 0);
@@ -251,12 +245,15 @@ coro::Task<int> fanIn() {
         co_return sum;
     };
 
+    auto consuming = (co_await coro::currentExecutor)->schedule(consumer(channel));
     std::vector<coro::Task<void>> producers;
     for (int p = 0; p < kFanInProducers; ++p) {
         producers.push_back(coro::SerialExecutor::create()->schedule(producer(channel, 1 + p * kFanInValues)));
     }
-    (co_await coro::currentExecutor)->schedule(closeWhenDone(channel, std::move(producers)));
-    co_return co_await consumer(channel);
+    // No single producer knows when the channel is done; the job closes it once all of them are.
+    co_await coro::all(std::move(producers));
+    channel.close();
+    co_return co_await consuming;
 }
 
 TEST(BoundedChannel, ProducersOnSeparateExecutorsShareTheChannel) {
