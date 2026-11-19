@@ -2,6 +2,7 @@
 
 #include "../core/task.hpp"
 #include "../core/awaitable.hpp"
+#include "../core/executor.inl.hpp"
 
 #include <variant>
 
@@ -63,6 +64,7 @@ private:
 
 private:
     friend struct detail::TaskOrValueAwaitable<R>;
+    friend class Executor;
     std::variant<Task<R>, R> _data;
 };
 
@@ -98,6 +100,7 @@ private:
 
 private:
     friend struct detail::TaskOrValueAwaitable<void>;
+    friend class Executor;
     std::variant<Task<void>, std::monostate> _data;
 };
 namespace detail {
@@ -159,5 +162,21 @@ struct await_ready_trait<TaskOrValue<R>> {
         return {std::move(awaitable), promise.context.stopToken};
     }
 };
+
+template <typename R>
+TaskOrValue<R> Executor::schedule(TaskOrValue<R>&& taskOrValue) {
+    if (taskOrValue.isTask()) {
+        return TaskOrValue<R> {schedule(std::move(taskOrValue.task()))};
+    }
+    return std::move(taskOrValue);
+}
+
+template <typename R>
+TaskOrValue<R> Executor::next(TaskOrValue<R>&& taskOrValue) {
+    if (taskOrValue.isTask()) {
+        return TaskOrValue<R> {next(std::move(taskOrValue.task()))};
+    }
+    return std::move(taskOrValue);
+}
 
 } // namespace coro
