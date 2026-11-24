@@ -20,6 +20,10 @@ struct TaskOrValueAwaitable;
  * This class itself can not serve as a coroutine frame wrapper, so no co_await/co_return from functions
  * returning TaskOrValue. However one can return both value and task from TaskOrValue function, and the
  * resulting TaskOrValue can be co_await(ed) in a most optimal way.
+ *
+ * Copies of a TaskOrValue holding a task share that task, as copies of a Task do: each copy can be awaited and gets
+ * the result. A copy of one holding a value holds its own copy of the value; it is up to the caller not to copy
+ * values that are expensive to copy. A TaskOrValue of a value type that can not be copied can not be copied either.
  */
 template <typename R>
 class TaskOrValue {
@@ -34,8 +38,8 @@ public:
         : _data(std::move(r)) {}
 
 public:
-    TaskOrValue(const TaskOrValue&) = delete;
-    TaskOrValue& operator=(const TaskOrValue&) = delete;
+    TaskOrValue(const TaskOrValue&) = default;
+    TaskOrValue& operator=(const TaskOrValue&) = default;
 
     TaskOrValue(TaskOrValue&&) = default;
     TaskOrValue& operator=(TaskOrValue&&) = default;
@@ -78,8 +82,8 @@ public:
         : _data(std::monostate {}) {}
 
 public:
-    TaskOrValue(const TaskOrValue&) = delete;
-    TaskOrValue& operator=(const TaskOrValue&) = delete;
+    TaskOrValue(const TaskOrValue&) = default;
+    TaskOrValue& operator=(const TaskOrValue&) = default;
 
     TaskOrValue(TaskOrValue&&) = default;
     TaskOrValue& operator=(TaskOrValue&&) = default;
