@@ -33,7 +33,8 @@ coro is a C++20 coroutine library that provides implementation of underlying gea
 - Async mutex `coro::Mutex`
 - Async latch `coro::Latch`
 - Async pipe `coro::Pipe<T>`
-- Closable channels `coro::Channel<T>` (unbounded) and `coro::BoundedChannel<T>` (back-pressure, 0 = rendezvous)
+- Closable channels `coro::Channel<T>` (unbounded) and `coro::BoundedChannel<T>` (back-pressure, 0 = rendezvous,
+  capacity changeable in use)
 
 ### Cancellation
 
