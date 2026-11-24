@@ -65,7 +65,12 @@ public:
 
     void close();
 
+    /// A larger capacity takes the oldest waiting senders' values until the buffer is full again; a smaller one drops
+    /// nothing, and the buffer shrinks to it as values are received.
+    void setCapacity(std::size_t capacity);
+
     std::size_t capacity() const {
+        std::scoped_lock lock {_mutex};
         return _capacity;
     }
 
@@ -73,13 +78,16 @@ private:
     friend class ChannelSendAwaitable<T>;
     friend class ChannelReceiveAwaitable<T>;
 
-    /// Takes the next value: the oldest buffered one (refilling the buffer from the oldest waiting sender), or the
-    /// oldest waiting sender's directly when nothing is buffered (rendezvous). False when there is nothing to take.
+    /// Takes the next value: the oldest buffered one (refilling the buffer from the oldest waiting sender while it is
+    /// under the capacity), or the oldest waiting sender's directly when nothing is buffered (rendezvous). False when
+    /// there is nothing to take.
     bool tryReceive(std::optional<T>& out);
 
-    std::mutex _mutex;
+    mutable std::mutex _mutex;
     std::deque<T> _buffer;
-    const std::size_t _capacity;
+    /// May be below the buffer's size after `setCapacity` lowered it: the buffer then takes no value until receives
+    /// bring it under the capacity.
+    std::size_t _capacity;
     bool _closed = false;
     Deque<ChannelSendAwaitable<T>*> _senders;
     Deque<ChannelReceiveAwaitable<T>*> _receivers;
@@ -242,9 +250,12 @@ bool ChannelState<T>::tryReceive(std::optional<T>& out) {
     if (!_buffer.empty()) {
         out = std::move(_buffer.front());
         _buffer.pop_front();
-        if (auto sender = _senders.popFront()) {
-            _buffer.push_back(std::move((*sender)->value()));
-            (*sender)->complete(true);
+        // After a lowered capacity the buffer can still be at or over it; its waiting senders keep waiting then.
+        if (_buffer.size() < _capacity) {
+            if (auto sender = _senders.popFront()) {
+                _buffer.push_back(std::move((*sender)->value()));
+                (*sender)->complete(true);
+            }
         }
         return true;
     }
@@ -254,6 +265,22 @@ bool ChannelState<T>::tryReceive(std::optional<T>& out) {
         return true;
     }
     return false;
+}
+
+template <typename T>
+void ChannelState<T>::setCapacity(std::size_t capacity) {
+    std::scoped_lock lock {_mutex};
+    _capacity = capacity;
+    // Senders wait only while the buffer is full, and receivers only while it is empty with no sender waiting, so
+    // room made here goes to the waiting senders, oldest first. A closed channel has no senders left.
+    while (_buffer.size() < _capacity) {
+        auto sender = _senders.popFront();
+        if (!sender) {
+            break;
+        }
+        _buffer.push_back(std::move((*sender)->value()));
+        (*sender)->complete(true);
+    }
 }
 
 template <typename T>
@@ -303,7 +330,7 @@ protected:
  *
  * `co_await channel.send(value)` suspends while `capacity` values are already waiting to be received, which applies
  * back-pressure to a producer that outruns its consumer. A capacity of 0 makes every send a rendezvous: it completes
- * only once a receiver has taken the value.
+ * only once a receiver has taken the value. setCapacity() changes the capacity while the channel is in use.
  *
  * @code
  * coro::BoundedChannel<int> channel {2};
@@ -324,6 +351,14 @@ public:
     /// first, in which case the value is dropped.
     [[nodiscard]] detail::ChannelSend<T> send(T value) const {
         return detail::ChannelSend<T> {this->_state, std::move(value)};
+    }
+
+    /// Changes how many values the channel holds for its receivers. A larger capacity takes the values of waiting
+    /// senders, oldest first, until the channel is full again; those sends complete with true. A smaller capacity drops
+    /// nothing: the values already in the channel stay, and sends wait until receives have brought the count below the
+    /// new capacity. 0 makes sends rendezvous once the values held are received. Callable from any thread.
+    void setCapacity(std::size_t capacity) const {
+        this->_state->setCapacity(capacity);
     }
 
     std::size_t capacity() const {

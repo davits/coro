@@ -478,6 +478,89 @@ TEST(BoundedChannel, StoppedProducerKeepsWhatItQueued) {
     EXPECT_EQ(run(stopTheProducer()), (std::vector<int> {1, 2}));
 }
 
+/// Four senders of one value each, started one after another so they wait in that order, into a channel with room for
+/// one. Raising the capacity to 3 lets the two oldest waiting senders in; the last waits until a receive makes room.
+coro::Task<void> raiseTheCapacity() {
+    coro::BoundedChannel<int> channel {1};
+    std::vector<bool> sent(5, false); // by value, 1 to 4
+
+    auto sender = [](coro::BoundedChannel<int> channel, int value, std::vector<bool>& sent) -> coro::Task<void> {
+        sent[value] = co_await channel.send(value);
+    };
+
+    const auto executor = co_await coro::currentExecutor;
+    std::vector<coro::Task<void>> senders;
+    for (int value = 1; value <= 4; ++value) {
+        senders.push_back(executor->schedule(sender(channel, value, sent)));
+        co_await coro::sleep(1);
+    }
+    EXPECT_EQ(sent, (std::vector<bool> {false, true, false, false, false}));
+
+    channel.setCapacity(3);
+    EXPECT_EQ(channel.capacity(), 3u);
+    co_await coro::sleep(1);
+    EXPECT_EQ(sent, (std::vector<bool> {false, true, true, true, false}));
+
+    // The values come out in the order they were sent, and the first receive lets the last sender in.
+    for (int expected = 1; expected <= 4; ++expected) {
+        const auto value = co_await channel.receive();
+        EXPECT_EQ(value, expected);
+    }
+    co_await coro::all(std::move(senders));
+    EXPECT_EQ(sent, (std::vector<bool> {false, true, true, true, true}));
+}
+
+TEST(BoundedChannel, RaisingTheCapacityLetsWaitingSendersIn) {
+    run(raiseTheCapacity());
+}
+
+/// A producer fills a channel of capacity `before` and waits with its next value; the capacity is then lowered to
+/// `after`. Nothing in the channel is dropped, and the producer stays held until receives bring the count below
+/// `after`. `sentAfter[i]` is how many sends have completed once the consumer has received i + 1 values.
+coro::Task<void> lowerTheCapacity(int before, int after, int values, std::vector<int> sentAfter) {
+    coro::BoundedChannel<int> channel {static_cast<std::size_t>(before)};
+    int sent = 0;
+
+    auto producer = [](coro::BoundedChannel<int> channel, int values, int& sent) -> coro::Task<void> {
+        for (int i = 1; i <= values; ++i) {
+            if (!co_await channel.send(i)) {
+                co_return;
+            }
+            ++sent;
+        }
+        channel.close();
+    };
+
+    auto producing = (co_await coro::currentExecutor)->schedule(producer(channel, values, sent));
+    co_await coro::sleep(1);
+    EXPECT_EQ(sent, before);
+
+    channel.setCapacity(static_cast<std::size_t>(after));
+    co_await coro::sleep(1);
+    EXPECT_EQ(sent, before); // nothing dropped, and no room made
+
+    for (int expected = 1; expected <= values; ++expected) {
+        const auto value = co_await channel.receive();
+        EXPECT_EQ(value, expected);
+        co_await coro::sleep(1);
+        EXPECT_EQ(sent, sentAfter[expected - 1]) << "after receiving " << expected;
+    }
+    const auto end = co_await channel.receive();
+    EXPECT_EQ(end, std::nullopt);
+    co_await producing;
+}
+
+TEST(BoundedChannel, LoweringTheCapacityKeepsTheValuesAndHoldsTheSenders) {
+    // [1 2 3 4] with 5 waiting. Receiving 1 and 2 leaves two, still not below 2; receiving 3 lets 5 in, and 6 then
+    // waits; receiving 4 lets 6 in.
+    run(lowerTheCapacity(4, 2, 6, {4, 4, 5, 6, 6, 6}));
+}
+
+TEST(BoundedChannel, LoweringTheCapacityToZeroEndsInRendezvous) {
+    // [1 2] with 3 waiting. 1 and 2 are received from the channel; 3 and 4 are then taken straight from the sender.
+    run(lowerTheCapacity(2, 0, 4, {2, 2, 3, 4}));
+}
+
 coro::Task<int> threadProducer() {
     coro::Channel<int> channel;
 
